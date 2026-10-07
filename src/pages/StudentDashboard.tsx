@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { useLive } from '../context/LiveContext';
 import { useToast } from '../context/ToastContext';
 import { LeafletMap } from '../components/LeafletMap';
+import { RouteStopPicker } from '../components/RouteStopPicker';
+import { VehicleGpsTracker } from '../components/VehicleGpsTracker';
 import { Route, Stop, Bus, Trip, FeedbackItem } from '../types';
 import {
   MapPin,
@@ -45,6 +47,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
   const [selectedBusDetails, setSelectedBusDetails] = useState<Bus | null>(null);
   const [selectedRouteId, setSelectedRouteId] = useState<string>('route_01');
   const [selectedStopId, setSelectedStopId] = useState<string>('stop_03');
+  const [destinationStopId, setDestinationStopId] = useState<string>('');
+  const [showVehicleGps, setShowVehicleGps] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [favouriteStops, setFavouriteStops] = useState<{ stopId: string; routeId: string }[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -344,95 +348,39 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
       {/* VIEW: LIVE TRACKER */}
       {activeTab === 'tracker' && (
         <div className="space-y-6">
-          {/* Quick Route & Stop Selector Deck */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            
-            {/* Route Selector */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
-                  1. Select Campus Route
-                </label>
-                <select
-                  value={selectedRouteId}
-                  onChange={e => {
-                    setSelectedRouteId(e.target.value);
-                    const newRoute = routes.find(r => r.id === e.target.value);
-                    if (newRoute?.stops?.[0]) {
-                      setSelectedStopId(newRoute.stops[0].id);
-                    }
-                  }}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none"
-                >
-                  {routes.map(r => (
-                    <option key={r.id} value={r.id}>
-                      {r.routeNumber} - {r.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* Customized Route & Stop Journey Picker */}
+          <RouteStopPicker
+            routes={routes}
+            selectedRouteId={selectedRouteId}
+            onSelectRoute={id => {
+              setSelectedRouteId(id);
+              const r = routes.find(x => x.id === id);
+              if (r?.stops?.[0]) setSelectedStopId(r.stops[0].id);
+            }}
+            selectedStopId={selectedStopId}
+            onSelectStop={id => setSelectedStopId(id)}
+            destinationStopId={destinationStopId}
+            onSelectDestinationStop={id => setDestinationStopId(id)}
+            favouriteStopIds={favouriteStops.map(f => f.stopId)}
+            onToggleFavourite={(stopId, routeId) => toggleFavourite(stopId, routeId)}
+            busLocations={busLocations}
+            buses={buses}
+            onFocusOnMap={(lat, lng) => {
+              // select stop or focus
+            }}
+          />
 
-              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
-                <span>Duration: <b className="text-slate-800 dark:text-slate-200">{activeRoute?.estimatedDurationMinutes}m</b></span>
-                <span>Morning: <b className="text-slate-800 dark:text-slate-200">{activeRoute?.morningStartTime}</b></span>
-              </div>
-            </div>
-
-            {/* Stop Selector & Search */}
-            <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                    2. My Boarding Stop
-                  </label>
-                  {selectedStop && (
-                    <button
-                      onClick={() => toggleFavourite(selectedStop.id, selectedRouteId)}
-                      className="text-xs text-amber-500 hover:text-amber-400 font-bold flex items-center gap-1"
-                      title="Bookmark stop"
-                    >
-                      {favouriteStops.some(f => f.stopId === selectedStop.id && f.routeId === selectedRouteId) ? (
-                        <>
-                          <BookmarkCheck className="w-3.5 h-3.5 fill-current" />
-                          <span>Saved</span>
-                        </>
-                      ) : (
-                        <>
-                          <Bookmark className="w-3.5 h-3.5" />
-                          <span>Save</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-
-                <select
-                  value={selectedStopId}
-                  onChange={e => setSelectedStopId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 outline-none"
-                >
-                  {allStops.map(s => (
-                    <option key={s.id} value={s.id}>
-                      #{s.stopOrder} {s.name} ({s.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 truncate">
-                📍 {selectedStop?.landmark || selectedStop?.address || 'Designated college transit point'}
-              </div>
-            </div>
-
-            {/* Live ETA Hero Banner Card */}
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 shadow-md shadow-amber-500/20 flex flex-col justify-between">
+          {/* Live ETA Hero Banner Card & Live GPS Toggle */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2 p-5 rounded-3xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 shadow-lg shadow-amber-500/20 flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black uppercase tracking-wider text-slate-900/80">
-                  Live Arrival Status
+                <span className="text-xs font-black uppercase tracking-wider text-slate-900/80 flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-slate-950" />
+                  <span>Real-Time Shuttle Arrival ETA</span>
                 </span>
-                <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full ${
+                <span className={`text-xs font-extrabold uppercase px-2.5 py-1 rounded-full ${
                   (busLiveLoc?.delayMinutes || activeTripOnRoute?.delayMinutes || 0) > 0
-                    ? 'bg-rose-900 text-rose-100'
+                    ? 'bg-rose-950 text-rose-200'
                     : 'bg-slate-950 text-amber-400'
                 }`}>
                   {(busLiveLoc?.delayMinutes || activeTripOnRoute?.delayMinutes || 0) > 0
@@ -441,22 +389,73 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
                 </span>
               </div>
 
-              <div className="my-2">
-                <div className="text-3xl font-black tracking-tight flex items-baseline gap-1">
-                  <span>{stopETA ? `${stopETA.etaMinutes}` : '--'}</span>
-                  <span className="text-sm font-bold uppercase">mins</span>
+              <div className="my-3 flex items-baseline justify-between">
+                <div>
+                  <div className="text-4xl font-black tracking-tight flex items-baseline gap-1.5">
+                    <span>{stopETA ? `${stopETA.etaMinutes}` : '--'}</span>
+                    <span className="text-lg font-bold uppercase">mins</span>
+                  </div>
+                  <p className="text-xs font-bold text-slate-900/90 mt-1">
+                    Boarding Stop: <span className="underline">{selectedStop?.name || 'Selected Point'}</span> ({selectedStop?.code})
+                  </p>
                 </div>
-                <p className="text-xs font-semibold text-slate-900/90 truncate">
-                  {activeBusOnRoute ? `${activeBusOnRoute.busNumber} (${activeBusOnRoute.plateNumber})` : 'Waiting for dispatch'}
+
+                <div className="text-right">
+                  <div className="text-xs font-bold text-slate-900/80">Assigned Shuttle</div>
+                  <div className="text-base font-black text-slate-950 mt-0.5">
+                    {activeBusOnRoute ? `${activeBusOnRoute.busNumber}` : 'Pending Dispatch'}
+                  </div>
+                  <div className="text-xs font-mono font-bold text-slate-900/80">
+                    {activeBusOnRoute?.plateNumber || ''}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-950/20 flex flex-wrap items-center justify-between text-xs font-bold text-slate-950">
+                <span>Distance: {stopETA ? `${stopETA.distanceKm} km away` : '--'}</span>
+                <span>Telemetry: {busLiveLoc ? `${Math.round(busLiveLoc.speed)} km/h · Heading ${busLiveLoc.heading || 0}°` : 'GPS Standby'}</span>
+                <button
+                  type="button"
+                  onClick={() => setShowVehicleGps(prev => !prev)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-950 text-amber-400 text-[11px] font-extrabold hover:bg-slate-900 transition-colors"
+                >
+                  {showVehicleGps ? 'Hide GPS Telemetry' : 'Show Vehicle GPS'}
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Stop Info Card */}
+            <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-1">
+                  Selected Stop Overview
+                </span>
+                <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  {selectedStop?.name}
+                </h4>
+                <div className="text-xs font-mono font-bold text-amber-600 dark:text-amber-400 mt-0.5">
+                  Stop Code: {selectedStop?.code}
+                </div>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                  📍 {selectedStop?.landmark || selectedStop?.address || 'Designated college transit checkpoint'}
                 </p>
               </div>
 
-              <div className="pt-2 border-t border-slate-950/15 flex items-center justify-between text-xs font-bold text-slate-950/80">
-                <span>Distance: {stopETA ? `${stopETA.distanceKm} km` : '--'}</span>
-                <span>Speed: {busLiveLoc ? `${Math.round(busLiveLoc.speed)} km/h` : '0 km/h'}</span>
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
+                <span>Corridor: <b className="text-slate-800 dark:text-slate-200">{activeRoute?.routeNumber}</b></span>
+                <span>Morning: <b className="text-slate-800 dark:text-slate-200">{activeRoute?.morningStartTime}</b></span>
               </div>
             </div>
           </div>
+
+          {/* Live Vehicle GPS Transponder HUD (when active) */}
+          {showVehicleGps && activeBusOnRoute && (
+            <VehicleGpsTracker
+              bus={activeBusOnRoute}
+              location={busLiveLoc}
+              trip={activeTripOnRoute}
+            />
+          )}
 
           {/* Interactive Map & Telemetry Dashboard */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

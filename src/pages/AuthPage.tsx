@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useLive } from '../context/LiveContext';
+import { useTheme } from '../context/ThemeContext';
+import { Logo } from '../components/Logo';
 import { UserRole } from '../types';
 import {
-  Bus,
   Lock,
   Mail,
   User,
@@ -33,6 +34,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
   const { login, register } = useAuth();
   const { showToast } = useToast();
   const { collegeName } = useLive();
+  const { accentPreset } = useTheme();
 
   // Active portal tab: 'student' | 'admin' | 'staff' | 'driver'
   const [selectedPortal, setSelectedPortal] = useState<'student' | 'admin' | 'staff' | 'driver'>(
@@ -238,13 +240,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
         </div>
 
         <div className="flex flex-col items-center text-center">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/25 mb-2.5">
-            <Bus className="w-7 h-7 stroke-[2.2]" />
+          <div className="mb-2">
+            <Logo size="lg" variant="full" />
           </div>
-          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-            Smart<span className="text-amber-500">Bus</span> Transport
-          </h2>
-          <p className="mt-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+          <p className="mt-1 text-xs font-bold" style={{ color: accentPreset.colorHex }}>
             {collegeName || 'Tirunelveli Engineering College (TEC)'}
           </p>
           <p className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -424,7 +423,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                     required
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder={selectedPortal === 'admin' ? 'admin@college.edu' : 'student.aarav@college.edu'}
+                    placeholder={selectedPortal === 'admin' ? 'official.admin@campus.edu' : 'student.aarav@college.edu'}
                     className="w-full pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>

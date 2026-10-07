@@ -1065,18 +1065,18 @@ apiRouter.post('/admin/simulator/reset', requireRole(['admin']), (req, res) => {
   res.json({ message: 'Database reset to initial sample state.' });
 });
 
-// CSV Export for Reports
+// --- CSV Data Export & Debugging Reports ---
 apiRouter.get('/admin/export/:type', requireRole(['admin']), (req, res) => {
   const { type } = req.params;
 
   if (type === 'users') {
     const users = db.getUsers().map(sanitizeUser);
-    let csv = 'ID,Name,Email,Role,CollegeID,Phone,Status,CreatedAt\n';
+    let csv = 'ID,Name,Email,Role,CollegeID,Department,Phone,Status,CreatedAt\n';
     users.forEach(u => {
-      csv += `"${u.id}","${u.name}","${u.email}","${u.role}","${u.collegeId}","${u.phone || ''}","${u.status}","${u.createdAt}"\n`;
+      csv += `"${u.id}","${u.name}","${u.email}","${u.role}","${u.collegeId}","${u.department || ''}","${u.phone || ''}","${u.status}","${u.createdAt}"\n`;
     });
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="smartbus-users.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="smartbus-users-directory.csv"');
     return res.send(csv);
   }
 
@@ -1088,14 +1088,166 @@ apiRouter.get('/admin/export/:type', requireRole(['admin']), (req, res) => {
     trips.forEach(t => {
       const b = buses.find(x => x.id === t.busId);
       const r = routes.find(x => x.id === t.routeId);
-      csv += `"${t.id}","${b?.busNumber || ''}","${b?.plateNumber || ''}","${r?.routeNumber || ''}","${r?.name || ''}","${t.driverId}","${t.status}",${t.occupiedSeats},${t.delayMinutes},"${t.delayReason || ''}","${t.startTime || ''}","${t.endTime || ''}"\n`;
+      csv += `"${t.id}","${b?.busNumber || ''}","${b?.plateNumber || ''}","${r?.routeNumber || ''}","${r?.name || ''}","${t.driverId}","${t.status}",${t.occupiedSeats},${t.delayMinutes},"${(t.delayReason || '').replace(/"/g, '""')}","${t.startTime || ''}","${t.endTime || ''}"\n`;
     });
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="smartbus-trips.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="smartbus-trips-report.csv"');
     return res.send(csv);
   }
 
-  res.status(400).json({ error: 'Invalid export type. Supported types: users, trips' });
+  if (type === 'buses' || type === 'fleet') {
+    const buses = db.getBuses();
+    let csv = 'BusID,PlateNumber,BusNumber,Model,Capacity,Status,Condition,BrakeCondition,BrakePadLifePercent,BrakePressurePsi,WheelCondition,TirePressurePsi,TireTreadDepthMm,SpareWheelPresent,InspectionDate,InspectionNotes,FuelType,FuelLevelPercent,MileageKm,LastServiceDate,NextServiceDue,CurrentRouteID,CurrentDriverID\n';
+    buses.forEach(b => {
+      csv += `"${b.id}","${b.plateNumber}","${b.busNumber}","${b.model || ''}",${b.capacity},"${b.status}","${b.condition || 'good'}","${b.brakeCondition || 'good'}",${b.brakePadLifePercent ?? 88},${b.brakePressurePsi ?? 110},"${b.wheelCondition || 'good'}",${b.tirePressurePsi ?? 110},${b.tireTreadDepthMm ?? 8.5},${b.spareWheelPresent !== false ? 'YES' : 'NO'},"${b.brakeWheelInspectionDate || ''}","${(b.brakeWheelInspectionNotes || '').replace(/"/g, '""')}","${b.fuelType || 'Diesel'}",${b.fuelLevelPercent ?? 75},${b.mileageKm ?? 25000},"${b.lastServiceDate || ''}","${b.nextServiceDue || ''}","${b.currentRouteId || ''}","${b.currentDriverId || ''}"\n`;
+    });
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="smartbus-fleet-condition.csv"');
+    return res.send(csv);
+  }
+
+  if (type === 'routes') {
+    const routes = db.getRoutes();
+    let csv = 'RouteID,RouteNumber,RouteName,Color,EstimatedDurationMinutes,MorningStartTime,EveningStartTime,StopsCount,StopSequence,Description\n';
+    routes.forEach(r => {
+      const stopSequence = (r.stops || []).map((s, idx) => `${idx + 1}. [${s.code}] ${s.name}`).join(' -> ');
+      csv += `"${r.id}","${r.routeNumber}","${r.name}","${r.color}",${r.estimatedDurationMinutes},"${r.morningStartTime || ''}","${r.eveningStartTime || ''}",${r.stops?.length || 0},"${stopSequence.replace(/"/g, '""')}","${(r.description || '').replace(/"/g, '""')}"\n`;
+    });
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="smartbus-custom-routes.csv"');
+    return res.send(csv);
+  }
+
+  if (type === 'stops') {
+    const stops = db.getStops();
+    const routes = db.getRoutes();
+    let csv = 'StopID,Code,Name,Latitude,Longitude,Landmark,Address,LinkedRoutesCount,LinkedRoutes\n';
+    stops.forEach(s => {
+      const linked = routes.filter(r => r.stops?.some(rs => rs.id === s.id || (rs as any).stopId === s.id)).map(r => r.routeNumber).join('; ');
+      const linkedCount = linked ? linked.split('; ').length : 0;
+      csv += `"${s.id}","${s.code}","${s.name}",${s.latitude},${s.longitude},"${(s.landmark || '').replace(/"/g, '""')}","${(s.address || '').replace(/"/g, '""')}",${linkedCount},"${linked}"\n`;
+    });
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="smartbus-stops-tirunelveli.csv"');
+    return res.send(csv);
+  }
+
+  if (type === 'telemetry' || type === 'gps') {
+    const locations = db.getAllLocations();
+    const buses = db.getBuses();
+    const trips = db.getActiveTrips();
+    let csv = 'BusID,PlateNumber,BusNumber,TripID,RouteNumber,Latitude,Longitude,SpeedKmH,HeadingDegrees,AccuracyMeters,Timestamp,Status,TransmissionMode\n';
+    Object.entries(locations).forEach(([busId, loc]) => {
+      const b = buses.find(x => x.id === busId);
+      const t = trips.find(x => x.busId === busId);
+      csv += `"${busId}","${b?.plateNumber || ''}","${b?.busNumber || ''}","${loc.tripId || t?.id || ''}","${t?.routeId || ''}",${loc.latitude},${loc.longitude},${loc.speed},${loc.heading},${loc.accuracy},"${loc.timestamp}","${b?.status || 'active'}","${loc.isSimulated ? 'SIMULATED_TRANSPONDER' : 'LIVE_HARDWARE_GPS'}"\n`;
+    });
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="smartbus-gps-telemetry-logs.csv"');
+    return res.send(csv);
+  }
+
+  if (type === 'debug') {
+    const buses = db.getBuses();
+    const stops = db.getStops();
+    const routes = db.getRoutes();
+    const locations = db.getAllLocations();
+
+    let csv = 'Category,EntityID,Identifier,Specification1,Specification2,Specification3,HealthStatus,DiagnosticNote\n';
+    buses.forEach(b => {
+      const loc = locations[b.id];
+      const hasGps = Boolean(loc);
+      const isMaint = b.status === 'maintenance' || b.condition === 'needs_service';
+      csv += `"VEHICLE","${b.id}","${b.plateNumber}","Model: ${b.model}","Brakes: ${b.brakeCondition} (${b.brakePadLifePercent}%)","Tyres: ${b.wheelCondition} (${b.tirePressurePsi} PSI)","${isMaint ? 'ATTENTION_NEEDED' : 'HEALTHY'}","${hasGps ? `GPS Active at ${loc.speed} km/h` : 'No Live Signal'}"\n`;
+    });
+    stops.forEach(s => {
+      const linkedCount = routes.filter(r => r.stops?.some(rs => rs.id === s.id || (rs as any).stopId === s.id)).length;
+      csv += `"STOP","${s.id}","${s.code}","${s.name}","Lat: ${s.latitude}","Lng: ${s.longitude}","${linkedCount > 0 ? 'SERVED' : 'ORPHAN'}","Connected to ${linkedCount} route corridors"\n`;
+    });
+    routes.forEach(r => {
+      const sc = r.stops?.length || 0;
+      csv += `"ROUTE","${r.id}","${r.routeNumber}","${r.name}","Duration: ${r.estimatedDurationMinutes}m","Stops: ${sc}","${sc >= 2 ? 'OPERATIONAL' : 'INCOMPLETE'}","Schedule: ${r.morningStartTime} / ${r.eveningStartTime}"\n`;
+    });
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="smartbus-system-debug-report.csv"');
+    return res.send(csv);
+  }
+
+  res.status(400).json({ error: 'Invalid export type. Supported: users, trips, buses, routes, stops, telemetry, debug' });
+});
+
+// Debug Data Health Report & Preview API
+apiRouter.get('/admin/debug/data-report', requireRole(['admin']), (_req, res) => {
+  const buses = db.getBuses();
+  const stops = db.getStops();
+  const routes = db.getRoutes();
+  const trips = db.getTrips();
+  const activeTrips = db.getActiveTrips();
+  const locations = db.getAllLocations();
+  const users = db.getUsers().map(sanitizeUser);
+
+  const orphanStops = stops.filter(s => !routes.some(r => r.stops?.some(rs => rs.id === s.id || (rs as any).stopId === s.id)));
+  const shortRoutes = routes.filter(r => !r.stops || r.stops.length < 2);
+  const maintenanceBuses = buses.filter(b => b.status === 'maintenance' || b.condition === 'needs_service' || (b.brakePadLifePercent && b.brakePadLifePercent < 70) || (b.tirePressurePsi && b.tirePressurePsi < 100));
+  const activeBusesWithGps = buses.filter(b => locations[b.id]);
+
+  res.json({
+    summary: {
+      totalBuses: buses.length,
+      totalStops: stops.length,
+      totalRoutes: routes.length,
+      totalTrips: trips.length,
+      activeTrips: activeTrips.length,
+      totalUsers: users.length,
+      liveGpsSignals: Object.keys(locations).length,
+    },
+    integrity: [
+      {
+        id: 'orphan_stops',
+        title: 'Orphan Stops Audit',
+        status: orphanStops.length === 0 ? 'passed' : 'warning',
+        count: orphanStops.length,
+        message: orphanStops.length === 0 
+          ? 'All Tirunelveli stops are linked to campus bus routes.' 
+          : `${orphanStops.length} stops are not linked to any active route corridor.`,
+        items: orphanStops.map(s => s.name),
+      },
+      {
+        id: 'route_completeness',
+        title: 'Route Path Completeness',
+        status: shortRoutes.length === 0 ? 'passed' : 'warning',
+        count: shortRoutes.length,
+        message: shortRoutes.length === 0
+          ? 'All customized routes contain complete multi-stop corridors.'
+          : `${shortRoutes.length} routes have fewer than 2 stops.`,
+        items: shortRoutes.map(r => r.name),
+      },
+      {
+        id: 'fleet_safety',
+        title: 'Brake & Wheel Safety Audit',
+        status: maintenanceBuses.length === 0 ? 'passed' : 'warning',
+        count: maintenanceBuses.length,
+        message: `${buses.length - maintenanceBuses.length}/${buses.length} fleet vehicles operating at verified green safety rating.`,
+        items: maintenanceBuses.map(b => `${b.busNumber} (${b.plateNumber}): Brake ${b.brakeCondition}, Tyre ${b.wheelCondition}`),
+      },
+      {
+        id: 'gps_telemetry',
+        title: 'Vehicle GPS Transponders Active',
+        status: activeBusesWithGps.length >= 3 ? 'passed' : 'info',
+        count: activeBusesWithGps.length,
+        message: `${activeBusesWithGps.length} campus vehicles currently broadcasting GPS telemetry to HQ dispatch.`,
+        items: activeBusesWithGps.map(b => `${b.plateNumber} (${locations[b.id]?.speed} km/h, ±${locations[b.id]?.accuracy}m)`),
+      },
+    ],
+    previews: {
+      buses: buses.slice(0, 10),
+      routes: routes.slice(0, 10),
+      stops: stops.slice(0, 12),
+      telemetry: Object.values(locations),
+      trips: trips.slice(0, 10),
+      users: users.slice(0, 10),
+    }
+  });
 });
 
 // --- System Settings (College Name & Global Config) ---

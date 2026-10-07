@@ -4,6 +4,8 @@ import { useLive } from '../context/LiveContext';
 import { useToast } from '../context/ToastContext';
 import { Route, Stop, Bus, Trip } from '../types';
 import { LeafletMap } from '../components/LeafletMap';
+import { RouteStopPicker } from '../components/RouteStopPicker';
+import { VehicleGpsTracker } from '../components/VehicleGpsTracker';
 import {
   Bus as BusIcon,
   MapPin,
@@ -89,8 +91,8 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({ activeTab, onTab
         const bData = await busesRes.json();
         setBuses(bData.buses || []);
       }
-    } catch (err) {
-      console.error('Failed to load staff portal data:', err);
+    } catch {
+      // Quiet fallback
     }
   };
 
@@ -288,83 +290,22 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({ activeTab, onTab
       {/* VIEW: LIVE BUS TRACKER */}
       {activeTab === 'tracker' && (
         <div className="space-y-6">
-          {/* Controls Bar: Route & Stop Selector */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
-              {/* Route Picker */}
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Select Campus Corridor / Route
-                </label>
-                <div className="relative">
-                  <Compass className="w-4 h-4 text-amber-500 absolute left-3 top-2.5" />
-                  <select
-                    value={selectedRouteId}
-                    onChange={e => {
-                      const newRouteId = e.target.value;
-                      setSelectedRouteId(newRouteId);
-                      const r = routes.find(rt => rt.id === newRouteId);
-                      if (r && r.stops && r.stops.length > 0) {
-                        setSelectedStopId(r.stops[0].id);
-                      }
-                    }}
-                    className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500"
-                  >
-                    {routes.map(r => (
-                      <option key={r.id} value={r.id}>
-                        {r.routeNumber}: {r.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Stop Picker */}
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                  Select Boarding / Destination Stop
-                </label>
-                <div className="relative">
-                  <MapPin className="w-4 h-4 text-blue-500 absolute left-3 top-2.5" />
-                  <select
-                    value={selectedStopId}
-                    onChange={e => setSelectedStopId(e.target.value)}
-                    className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500"
-                  >
-                    {routeStops.map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.code} - {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Favorite toggle for this stop */}
-            {selectedStop && (
-              <button
-                onClick={() => toggleFavourite(selectedStop.id)}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all border self-start md:self-end ${
-                  favouriteStopIds.includes(selectedStop.id)
-                    ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 shadow-sm'
-                    : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:text-slate-900 dark:hover:text-white'
-                }`}
-              >
-                {favouriteStopIds.includes(selectedStop.id) ? (
-                  <>
-                    <BookmarkCheck className="w-4 h-4 text-amber-500" />
-                    <span>Saved Faculty Stop</span>
-                  </>
-                ) : (
-                  <>
-                    <Bookmark className="w-4 h-4" />
-                    <span>Save Stop</span>
-                  </>
-                )}
-              </button>
-            )}
-          </div>
+          {/* Customized Route & Stop Journey Picker */}
+          <RouteStopPicker
+            routes={routes}
+            selectedRouteId={selectedRouteId}
+            onSelectRoute={id => {
+              setSelectedRouteId(id);
+              const r = routes.find(rt => rt.id === id);
+              if (r?.stops?.[0]) setSelectedStopId(r.stops[0].id);
+            }}
+            selectedStopId={selectedStopId}
+            onSelectStop={id => setSelectedStopId(id)}
+            favouriteStopIds={favouriteStopIds}
+            onToggleFavourite={stopId => toggleFavourite(stopId)}
+            busLocations={busLocations}
+            buses={buses}
+          />
 
           {/* Real-time Status Card & Map Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

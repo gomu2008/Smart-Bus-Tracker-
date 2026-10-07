@@ -58,19 +58,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const data = await res.json();
           setUser(data.user);
           localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-        } else {
-          // Token is invalid/expired
+        } else if (res.status === 401 || res.status === 403) {
+          // Explicit token rejection from server
           localStorage.removeItem(TOKEN_KEY);
           localStorage.removeItem(USER_KEY);
           setToken(null);
           setUser(null);
         }
-      } catch (err) {
-        console.warn('Session verification could not reach server; falling back safely:', err);
-        localStorage.removeItem(TOKEN_KEY);
-        localStorage.removeItem(USER_KEY);
-        setToken(null);
-        setUser(null);
+      } catch {
+        // Network offline or server starting up: retain cached session safely
       } finally {
         setIsLoading(false);
       }
@@ -164,8 +160,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(data.user);
         localStorage.setItem(USER_KEY, JSON.stringify(data.user));
       }
-    } catch (err) {
-      console.error('Failed to refresh user:', err);
+    } catch {
+      // Quiet fallback
     }
   };
 

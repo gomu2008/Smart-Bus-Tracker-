@@ -1,5 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { Logo } from './Logo';
 import {
   MapPin,
   Clock,
@@ -14,7 +16,7 @@ import {
   FileSpreadsheet,
   Gauge,
   X,
-  Radio,
+  Sparkles,
   Sliders,
 } from 'lucide-react';
 
@@ -27,6 +29,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isOpen, onClose }) => {
   const { user } = useAuth();
+  const { accentPreset, openStudio, templatePreset } = useTheme();
 
   if (!user) return null;
 
@@ -99,9 +102,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isOpen
         }`}
       >
         <div className="p-4 flex-1 overflow-y-auto">
-          {/* Mobile Header */}
+          {/* Mobile Header with Logo */}
           <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-100 dark:border-slate-800 lg:hidden">
-            <span className="font-bold text-xs uppercase tracking-wider text-slate-500">Navigation</span>
+            <Logo size="sm" variant="full" />
             <button
               onClick={onClose}
               className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
@@ -122,11 +125,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isOpen
                   onClick={() => handleLinkClick(link.id)}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                     isActive
-                      ? 'bg-amber-500 text-slate-950 shadow-sm shadow-amber-500/20'
+                      ? 'text-white shadow-sm'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
                   }`}
+                  style={
+                    isActive
+                      ? {
+                          backgroundColor: accentPreset.colorHex,
+                        }
+                      : {}
+                  }
                 >
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-slate-950' : 'text-slate-400'}`} />
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                   <span className="truncate">{link.label}</span>
                 </button>
               );
@@ -134,22 +144,43 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isOpen
           </nav>
         </div>
 
-        {/* User Mini Card at bottom */}
-        <div className="p-3.5 m-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate">
-              {user.name}
-            </span>
-            <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${
-              user.role === 'staff'
-                ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20'
-                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-            }`}>
-              {user.role === 'staff' ? 'Faculty/Staff' : user.role}
-            </span>
-          </div>
-          <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-            ID: {user.collegeId} {user.department ? `· ${user.department}` : ''}
+        {/* Bottom Options: Theme Studio & User Mini Card */}
+        <div className="p-3 m-3 space-y-2 border-t border-slate-100 dark:border-slate-800">
+          {/* Quick Studio Trigger button */}
+          <button
+            onClick={openStudio}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80 transition-all group"
+          >
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5" style={{ color: accentPreset.colorHex }} />
+              <span>Theme & Template</span>
+            </div>
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: accentPreset.colorHex }}
+            />
+          </button>
+
+          {/* User Mini Card */}
+          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate">
+                {user.name}
+              </span>
+              <span
+                className="text-[9px] font-bold uppercase px-1.5 py-0.2 rounded border"
+                style={{
+                  backgroundColor: `${accentPreset.colorHex}15`,
+                  color: accentPreset.colorHex,
+                  borderColor: `${accentPreset.colorHex}30`,
+                }}
+              >
+                {user.role}
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+              ID: {user.collegeId} · {templatePreset.name.split(' ')[0]}
+            </div>
           </div>
         </div>
       </aside>

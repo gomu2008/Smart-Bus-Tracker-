@@ -417,6 +417,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             </span>
           </div>
           <div style="font-size: 11px; color: #475569; margin-bottom: 3px;">Speed: <b>${speedKmH} km/h</b> (Heading: ${loc.heading}°)</div>
+          <div style="font-size: 10px; font-family: monospace; color: #b45309; background: #fef3c7; padding: 2px 6px; border-radius: 4px; margin: 3px 0; border: 1px solid #fde68a;">
+            🛰️ GPS: <b>${loc.latitude.toFixed(5)}°N, ${loc.longitude.toFixed(5)}°E</b> (±${loc.accuracy || 5}m · ${loc.isSimulated ? 'Transponder' : 'Live Device GPS'})
+          </div>
           <div style="font-size: 11px; color: #475569; margin-bottom: 3px;">Occupancy: <b>${loc.occupiedSeats ?? (trip?.occupiedSeats || 0)} / ${bus.capacity} seats</b></div>
           ${trip?.delayReason ? `<div style="font-size: 11px; color: #b45309; margin-top: 4px; padding: 4px; background: #fffbeb; border-radius: 4px;">⚠️ ${trip.delayReason}</div>` : ''}
           ${isSignalLost ? `<div style="font-size: 11px; color: #dc2626; margin-top: 4px; font-weight: 600;">⚠️ GPS signal lost (>60s)</div>` : ''}

@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLive } from '../context/LiveContext';
 import { useToast } from '../context/ToastContext';
+import { useTheme } from '../context/ThemeContext';
+import { Logo } from '../components/Logo';
 import { LeafletMap } from '../components/LeafletMap';
+import { CsvDataReportDebugger } from '../components/CsvDataReportDebugger';
+import { VehicleGpsTracker } from '../components/VehicleGpsTracker';
 import { Bus, Route, Stop, User, FeedbackItem, Announcement } from '../types';
 import {
   Gauge,
@@ -47,6 +51,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
   const { user, token } = useAuth();
   const { showToast } = useToast();
   const { busLocations, activeTrips, refreshAllData, collegeName, updateCollegeName } = useLive();
+  const { openStudio, accentPreset, templatePreset, logoPreset, brandName } = useTheme();
 
   // College Name state
   const [collegeNameInput, setCollegeNameInput] = useState<string>(collegeName || '');
@@ -94,6 +99,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
   const [routes, setRoutes] = useState<Route[]>([]);
   const [stops, setStops] = useState<Stop[]>([]);
   const [editingStop, setEditingStop] = useState<Stop | null>(null);
+  const [editingRoute, setEditingRoute] = useState<Route | null>(null);
   const [stopSearch, setStopSearch] = useState<string>('');
   const [showAddRouteModal, setShowAddRouteModal] = useState<boolean>(false);
   const [showAddStopModal, setShowAddStopModal] = useState<boolean>(false);
@@ -467,7 +473,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
     }
   };
 
-  // Save Route
+  // Save / Update Route
   const handleSaveRoute = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -476,8 +482,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
         scheduledMinutesFromStart: idx * 7,
       }));
 
-      const res = await fetch('/api/routes', {
-        method: 'POST',
+      const url = editingRoute ? `/api/routes/${editingRoute.id}` : '/api/routes';
+      const method = editingRoute ? 'PATCH' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           ...routeForm,
@@ -487,8 +496,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
 
       const data = await res.json();
       if (res.ok) {
-        showToast('Route created successfully!', 'success');
+        showToast(editingRoute ? 'Route updated and customized successfully!' : 'Route created successfully!', 'success');
         setShowAddRouteModal(false);
+        setEditingRoute(null);
         setRouteForm({
           name: '',
           routeNumber: '',
@@ -503,7 +513,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
         fetchStats();
         refreshAllData();
       } else {
-        showToast(data.error || 'Failed to create route', 'error');
+        showToast(data.error || 'Failed to save route', 'error');
       }
     } catch {
       showToast('Error saving route', 'error');
@@ -1166,8 +1176,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
                     setStopForm({
                       name: '',
                       code: '',
-                      latitude: 12.9800,
-                      longitude: 77.6050,
+                      latitude: 8.7139,
+                      longitude: 77.7567,
                       landmark: '',
                       address: '',
                     });
@@ -1215,13 +1225,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
                       <span className="text-xs font-bold px-2 py-0.5 rounded text-slate-950" style={{ backgroundColor: r.color || '#F59E0B' }}>
                         {r.routeNumber}
                       </span>
-                      <button
-                        onClick={() => handleDeleteRoute(r.id)}
-                        className="text-slate-400 hover:text-rose-500 p-1"
-                        title="Delete Route"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingRoute(r);
+                            setRouteForm({
+                              name: r.name,
+                              routeNumber: r.routeNumber,
+                              color: r.color || '#F59E0B',
+                              description: r.description || '',
+                              estimatedDurationMinutes: r.estimatedDurationMinutes || 30,
+                              morningStartTime: r.morningStartTime || '08:00 AM',
+                              eveningStartTime: r.eveningStartTime || '05:00 PM',
+                              selectedStopIds: (r.stops || []).map(s => s.id),
+                            });
+                            setShowAddRouteModal(true);
+                          }}
+                          className="text-slate-400 hover:text-amber-500 p-1 rounded-lg hover:bg-amber-500/10 transition-colors"
+                          title="Customize Route & Stops"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteRoute(r.id)}
+                          className="text-slate-400 hover:text-rose-500 p-1 rounded-lg hover:bg-rose-500/10 transition-colors"
+                          title="Delete Route"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                     <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-1">{r.name}</h3>
                     <p className="text-xs text-slate-500 mb-3">{r.description}</p>
@@ -1678,76 +1712,93 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
 
       {/* VIEW: DATA REPORTS & CSV EXPORT */}
       {activeTab === 'reports' && (
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Data Export & Compliance Reports</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Download system data in standardized CSV formats</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 flex flex-col justify-between">
-              <div>
-                <FileSpreadsheet className="w-8 h-8 text-amber-500 mb-3" />
-                <h3 className="font-bold text-base text-slate-900 dark:text-white mb-1">
-                  Trip Execution Logs (CSV)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
-                  Export historical logs of all shuttle runs, assigned vehicles, drivers, occupancy counts, and punctuality variance.
-                </p>
-              </div>
-
-              <a
-                href={`/api/admin/export/trips?token=${token}`}
-                download="smartbus-trips.csv"
-                className="py-2.5 px-4 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs hover:bg-amber-400 transition-colors flex items-center justify-center gap-2"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Trips CSV</span>
-              </a>
-            </div>
-
-            <div className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 flex flex-col justify-between">
-              <div>
-                <Users className="w-8 h-8 text-blue-500 mb-3" />
-                <h3 className="font-bold text-base text-slate-900 dark:text-white mb-1">
-                  Registered Users & Fleet Directory (CSV)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
-                  Export student riders, verified drivers, institutional college IDs, contact numbers, and account status records.
-                </p>
-              </div>
-
-              <a
-                href={`/api/admin/export/users?token=${token}`}
-                download="smartbus-users.csv"
-                className="py-2.5 px-4 rounded-xl bg-slate-900 dark:bg-slate-800 text-white font-bold text-xs hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 border border-slate-700"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Users CSV</span>
-              </a>
-            </div>
-          </div>
-        </div>
+        <CsvDataReportDebugger />
       )}
 
       {/* VIEW: ADMIN SETTINGS & PROFILE */}
       {activeTab === 'profile' && (
         <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">Admin Credentials & System Identity</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Institutional control profile</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Admin Clearance & Institutional Identity</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Institutional control profile (Master Access)</p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-extrabold text-xs flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Full Clearance</span>
+            </span>
+          </div>
 
           <div className="space-y-3 max-w-md text-xs">
             <div>
-              <span className="font-bold text-slate-500 block mb-1">Administrator Name</span>
-              <p className="font-bold text-slate-900 dark:text-white">{user?.name}</p>
+              <span className="font-bold text-slate-500 block mb-1">Administrator Role</span>
+              <p className="font-bold text-slate-900 dark:text-white">{user?.name || 'Authorized Institutional Administrator'}</p>
             </div>
             <div>
-              <span className="font-bold text-slate-500 block mb-1">Administrator Email</span>
-              <p className="font-mono text-slate-900 dark:text-white">{user?.email}</p>
+              <span className="font-bold text-slate-500 block mb-1">Administrator Account</span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-slate-700 dark:text-slate-200 font-bold bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                  Protected Administrator Account
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">●●●●●●●●</span>
+              </div>
             </div>
             <div>
               <span className="font-bold text-slate-500 block mb-1">College ID</span>
-              <p className="font-mono text-amber-500 font-bold">{user?.collegeId}</p>
+              <p className="font-mono text-amber-500 font-bold">{user?.collegeId || 'TEC-ADMIN-HQ'}</p>
+            </div>
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500">
+              🔒 Confidentiality Notice: Institutional email and authentication passwords are encrypted and confidential.
+            </div>
+          </div>
+
+          {/* Transit Branding, Logo & Template Architecture */}
+          <div className="pt-6 border-t border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" style={{ color: accentPreset.colorHex }} />
+                  <span>Branding, Logo Emblem & Layout Template Architecture</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Configure visual identity, color scheme, active vector emblem, and dashboard structure
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={openStudio}
+                className="px-4 py-2 rounded-xl text-white font-bold text-xs shadow-md transition-all flex items-center gap-2 shrink-0"
+                style={{ backgroundColor: accentPreset.colorHex }}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Open Theme & Template Studio</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">Active Logo & Moniker</span>
+                <div className="flex items-center gap-2">
+                  <Logo size="sm" variant="full" />
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 font-medium">Style: {logoPreset.name}</p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">Active Theme Palette</span>
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full shadow-xs border border-white/20" style={{ backgroundColor: accentPreset.colorHex }} />
+                  <span className="font-bold text-xs text-slate-900 dark:text-white">{accentPreset.name}</span>
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 font-medium">{accentPreset.tagline}</p>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">Layout Architecture</span>
+                <div className="font-bold text-xs text-slate-900 dark:text-white">{templatePreset.name}</div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{templatePreset.description}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -2328,6 +2379,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
               </p>
             </div>
 
+            {/* Live Vehicle GPS Transponder & Telemetry */}
+            <div className="mb-4">
+              <VehicleGpsTracker
+                bus={busDetailModal}
+                location={busLocations[busDetailModal.id]}
+              />
+            </div>
+
             {/* Technical Specifications Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs mb-4">
               <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
@@ -2472,104 +2531,259 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
         </div>
       )}
 
-      {/* MODAL: ADD ROUTE */}
+      {/* MODAL: ADD / CUSTOMIZE ROUTE & STOP SEQUENCE */}
       {showAddRouteModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 max-w-lg w-full rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">
-              Create New Campus Route
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">Link stops into an active corridor</p>
-
-            <form onSubmit={handleSaveRoute} className="space-y-3 text-xs">
+          <div className="bg-white dark:bg-slate-900 max-w-xl w-full rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 dark:border-slate-800">
               <div>
-                <label className="block font-bold mb-1">Route Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Route 4: South Tech Express"
-                  value={routeForm.name}
-                  onChange={e => setRouteForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
-                />
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Compass className="w-4 h-4 text-amber-500" />
+                  <span>{editingRoute ? 'Customize Route & Ordered Stops' : 'Create Campus Route Corridor'}</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {editingRoute
+                    ? `Configuring stop sequence & timetable for ${editingRoute.name}`
+                    : 'Assemble designated bus stops into an active transit line'}
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddRouteModal(false);
+                  setEditingRoute(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleSaveRoute} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold mb-1">Route Number / Code</label>
+                  <label className="block font-bold mb-1">Route Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Route 4: Thachanallur Express"
+                    value={routeForm.name}
+                    onChange={e => setRouteForm(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold mb-1">Route Number / Code *</label>
                   <input
                     type="text"
                     required
                     placeholder="R-04"
                     value={routeForm.routeNumber}
                     onChange={e => setRouteForm(prev => ({ ...prev, routeNumber: e.target.value }))}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-bold font-mono"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold mb-1">Morning Schedule</label>
+                  <input
+                    type="text"
+                    value={routeForm.morningStartTime}
+                    onChange={e => setRouteForm(prev => ({ ...prev, morningStartTime: e.target.value }))}
+                    placeholder="07:45 AM"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold mb-1">Evening Schedule</label>
+                  <input
+                    type="text"
+                    value={routeForm.eveningStartTime}
+                    onChange={e => setRouteForm(prev => ({ ...prev, eveningStartTime: e.target.value }))}
+                    placeholder="04:45 PM"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold mb-1">Estimated Duration (mins)</label>
+                  <input
+                    type="number"
+                    value={routeForm.estimatedDurationMinutes}
+                    onChange={e => setRouteForm(prev => ({ ...prev, estimatedDurationMinutes: parseInt(e.target.value, 10) || 30 }))}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="sm:col-span-3">
+                  <label className="block font-bold mb-1">Corridor Description</label>
+                  <input
+                    type="text"
+                    placeholder="Transit path and key institutions served..."
+                    value={routeForm.description}
+                    onChange={e => setRouteForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
+                  />
+                </div>
+
                 <div>
                   <label className="block font-bold mb-1">Map Line Color</label>
                   <input
                     type="color"
                     value={routeForm.color}
                     onChange={e => setRouteForm(prev => ({ ...prev, color: e.target.value }))}
-                    className="w-full h-8 p-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer"
+                    className="w-full h-8.5 p-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold mb-1">Description</label>
-                <input
-                  type="text"
-                  placeholder="Transit path details..."
-                  value={routeForm.description}
-                  onChange={e => setRouteForm(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
-                />
-              </div>
+              {/* CUSTOMIZE ORDERED STOPS IN SEQUENCE */}
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Stop Sequence Order ({routeForm.selectedStopIds.length} stops in corridor)</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400">Re-order stops in transit sequence</span>
+                </div>
 
-              {/* Select Stops Checkbox List */}
-              <div>
-                <label className="block font-bold mb-1">Include Stops in Route</label>
-                <div className="max-h-40 overflow-y-auto p-2 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
-                  {stops.map(s => {
-                    const isChecked = routeForm.selectedStopIds.includes(s.id);
-                    return (
-                      <label key={s.id} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {
-                            setRouteForm(prev => ({
-                              ...prev,
-                              selectedStopIds: isChecked
-                                ? prev.selectedStopIds.filter(id => id !== s.id)
-                                : [...prev.selectedStopIds, s.id],
-                            }));
-                          }}
-                          className="rounded text-amber-500 focus:ring-amber-500"
-                        />
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">{s.name}</span>
-                        <span className="text-[10px] text-slate-400">({s.code})</span>
-                      </label>
-                    );
-                  })}
+                {/* Ordered List of Selected Stops */}
+                {routeForm.selectedStopIds.length > 0 ? (
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-100 dark:divide-slate-800/80">
+                    {routeForm.selectedStopIds.map((stopId, idx) => {
+                      const stop = stops.find(s => s.id === stopId);
+                      if (!stop) return null;
+
+                      return (
+                        <div key={stopId} className="pt-1.5 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 truncate">
+                            <span className="w-5 h-5 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-bold text-[10px] flex-shrink-0">
+                              {idx + 1}
+                            </span>
+                            <div className="truncate">
+                              <span className="font-semibold text-slate-900 dark:text-white">
+                                {stop.name}
+                              </span>{' '}
+                              <span className="font-mono text-[10px] text-amber-600 dark:text-amber-400">
+                                ({stop.code})
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {/* Move Up */}
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => {
+                                if (idx === 0) return;
+                                const next = [...routeForm.selectedStopIds];
+                                const temp = next[idx - 1];
+                                next[idx - 1] = next[idx];
+                                next[idx] = temp;
+                                setRouteForm(prev => ({ ...prev, selectedStopIds: next }));
+                              }}
+                              className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 text-xs font-bold"
+                              title="Move Stop Up"
+                            >
+                              ↑
+                            </button>
+
+                            {/* Move Down */}
+                            <button
+                              type="button"
+                              disabled={idx === routeForm.selectedStopIds.length - 1}
+                              onClick={() => {
+                                if (idx === routeForm.selectedStopIds.length - 1) return;
+                                const next = [...routeForm.selectedStopIds];
+                                const temp = next[idx + 1];
+                                next[idx + 1] = next[idx];
+                                next[idx] = temp;
+                                setRouteForm(prev => ({ ...prev, selectedStopIds: next }));
+                              }}
+                              className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 text-xs font-bold"
+                              title="Move Stop Down"
+                            >
+                              ↓
+                            </button>
+
+                            {/* Remove */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRouteForm(prev => ({
+                                  ...prev,
+                                  selectedStopIds: prev.selectedStopIds.filter(id => id !== stopId),
+                                }));
+                              }}
+                              className="p-1 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-500/10"
+                              title="Remove Stop from Corridor"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="py-4 text-center text-slate-400 text-xs italic">
+                    No stops added yet. Select a bus stop below to add it to the sequence.
+                  </div>
+                )}
+
+                {/* Add Stop to Sequence Dropdown */}
+                <div className="pt-2 border-t border-slate-200 dark:border-slate-700/80 flex items-center gap-2">
+                  <select
+                    id="add-stop-select"
+                    defaultValue=""
+                    onChange={e => {
+                      if (!e.target.value) return;
+                      const val = e.target.value;
+                      if (!routeForm.selectedStopIds.includes(val)) {
+                        setRouteForm(prev => ({
+                          ...prev,
+                          selectedStopIds: [...prev.selectedStopIds, val],
+                        }));
+                      }
+                      e.target.value = '';
+                    }}
+                    className="flex-1 px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none font-semibold text-xs"
+                  >
+                    <option value="">+ Add Designated Stop to Sequence...</option>
+                    {stops
+                      .filter(s => !routeForm.selectedStopIds.includes(s.id))
+                      .map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.code}) - {s.landmark || s.address || 'Tirunelveli'}
+                        </option>
+                      ))}
+                  </select>
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-3">
+              <div className="flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setShowAddRouteModal(false)}
-                  className="flex-1 py-2 rounded-xl border border-slate-200 dark:border-slate-700 font-bold"
+                  onClick={() => {
+                    setShowAddRouteModal(false);
+                    setEditingRoute(null);
+                  }}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400"
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 text-slate-950 font-bold hover:bg-amber-400 shadow-md transition-transform active:scale-95"
                 >
-                  Save Route
+                  {editingRoute ? 'Save Customized Route' : 'Create Route Corridor'}
                 </button>
               </div>
             </form>

@@ -2,8 +2,52 @@
 
 @layer base {
   :root {
-    --brand-amber: #f59e0b;
-    --brand-amber-dark: #d97706;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --color-primary: #f59e0b;
+    --color-primary-dark: #d97706;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Midnight OLED True Black Mode */
+  html.midnight {
+    background-color: #020617;
+    color: #f8fafc;
+  }
+
+  html.midnight body {
+    background-color: #020617;
+  }
+
+  html.midnight .bg-slate-900 {
+    background-color: #090d16 !important;
+  }
+
+  html.midnight .bg-slate-950 {
+    background-color: #020617 !important;
+  }
+
+  html.midnight .border-slate-800 {
+    border-color: #1e293b !important;
+  }
+
+  /* Density compact rules */
+  html[data-density='compact'] .py-6 {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+  }
+
+  html[data-density='compact'] .p-6 {
+    padding: 1rem !important;
+  }
+
+  html[data-density='compact'] .gap-6 {
+    gap: 1rem !important;
   }
 }
 
@@ -16,11 +60,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(156, 163, 175, 0.4);
+  background: rgba(156, 163, 175, 0.3);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(156, 163, 175, 0.6);
+  background: rgba(156, 163, 175, 0.5);
 }
 
 /* Leaflet map custom styling */
@@ -33,18 +77,25 @@
 }
 
 .leaflet-popup-content-wrapper {
-  border-radius: 0.75rem;
+  border-radius: 1rem;
   padding: 0;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
   background-color: #ffffff;
   color: #0f172a;
   overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .dark .leaflet-popup-content-wrapper {
-  background-color: #1e293b;
+  background-color: #0f172a;
   color: #f8fafc;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+html.midnight .leaflet-popup-content-wrapper {
+  background-color: #020617;
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.16);
 }
 
 .leaflet-popup-content {
@@ -56,22 +107,25 @@
   background-color: #ffffff;
 }
 .dark .leaflet-popup-tip {
-  background-color: #1e293b;
+  background-color: #0f172a;
+}
+html.midnight .leaflet-popup-tip {
+  background-color: #020617;
 }
 
 /* Pulsing radar effect for active buses */
 @keyframes bus-pulse {
   0% {
     transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+    box-shadow: 0 0 0 0 var(--color-primary, rgba(245, 158, 11, 0.7));
   }
   70% {
     transform: scale(1.05);
-    box-shadow: 0 0 0 12px rgba(245, 158, 11, 0);
+    box-shadow: 0 0 0 12px transparent;
   }
   100% {
     transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+    box-shadow: 0 0 0 0 transparent;
   }
 }
 
@@ -86,11 +140,11 @@
   }
   70% {
     transform: scale(1.1);
-    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+    box-shadow: 0 0 0 8px transparent;
   }
   100% {
     transform: scale(0.9);
-    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+    box-shadow: 0 0 0 0 transparent;
   }
 }
 

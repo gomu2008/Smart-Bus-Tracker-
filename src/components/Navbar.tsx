@@ -2,21 +2,17 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLive } from '../context/LiveContext';
 import { useTheme } from '../context/ThemeContext';
+import { Logo } from './Logo';
+import { ThemeSelector } from './ThemeSelector';
 import {
-  Bus,
   Bell,
-  Sun,
-  Moon,
   LogOut,
   Radio,
   User as UserIcon,
-  Check,
   Menu,
-  X,
   AlertTriangle,
   Info,
   Clock,
-  Edit2,
   ShieldCheck,
 } from 'lucide-react';
 
@@ -30,7 +26,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, activeTab, onTabChange, onOpenAuth }) => {
   const { user, logout } = useAuth();
   const { isConnected, collegeName, notifications, unreadNotifsCount, markNotificationRead, markAllNotificationsRead } = useLive();
-  const { theme, toggleTheme } = useTheme();
+  const { accentPreset, template, templatePreset } = useTheme();
 
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -57,18 +53,54 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, activeTab, onTa
         return 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800';
       case 'driver':
         return 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-800';
+      case 'staff':
+        return 'bg-teal-100 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border-teal-300 dark:border-teal-800';
       default:
         return 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800';
     }
   };
 
+  // Nav links for Executive Portal template
+  const executiveLinks =
+    user?.role === 'admin'
+      ? [
+          { id: 'overview', label: 'Command' },
+          { id: 'fleet', label: 'Fleet' },
+          { id: 'routes', label: 'Routes' },
+          { id: 'users', label: 'Users' },
+          { id: 'map_tactical', label: 'Radar Map' },
+          { id: 'reports', label: 'CSV Reports' },
+        ]
+      : user?.role === 'driver'
+      ? [
+          { id: 'dispatch', label: 'Trip Control' },
+          { id: 'route_stops', label: 'Stops & Timings' },
+          { id: 'announcements', label: 'Bulletins' },
+          { id: 'profile', label: 'Vehicle Profile' },
+        ]
+      : user?.role === 'staff'
+      ? [
+          { id: 'tracker', label: 'Live Tracker' },
+          { id: 'timetable', label: 'Timetable' },
+          { id: 'seating', label: 'Faculty Seating' },
+          { id: 'announcements', label: 'Bulletins' },
+          { id: 'profile', label: 'Profile' },
+        ]
+      : [
+          { id: 'tracker', label: 'Live Tracker' },
+          { id: 'timetable', label: 'Timetable' },
+          { id: 'favorites', label: 'Saved Stops' },
+          { id: 'announcements', label: 'Announcements' },
+          { id: 'profile', label: 'Profile' },
+        ];
+
   return (
-    <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <header className="sticky top-0 z-30 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         
-        {/* Brand & Mobile Hamburger */}
-        <div className="flex items-center gap-3">
-          {user && (
+        {/* Zone 1: Brand Wordmark & Hamburger */}
+        <div className="flex items-center gap-3 shrink-0">
+          {user && template !== 'executive-portal' && (
             <button
               onClick={onToggleSidebar}
               className="lg:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none"
@@ -79,53 +111,61 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, activeTab, onTa
           )}
 
           <div
-            onClick={() => onTabChange && onTabChange('overview')}
-            className="flex items-center gap-2.5 cursor-pointer group"
+            onClick={() => onTabChange && onTabChange(user?.role === 'admin' ? 'overview' : 'tracker')}
+            className="cursor-pointer group flex items-center"
+            title={`${collegeName || 'Campus Transport System'} - Click to go to main view`}
           >
-            <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
-              <Bus className="w-6 h-6 stroke-[2.2]" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold tracking-tight text-lg text-slate-900 dark:text-white">
-                  Smart<span className="text-amber-500">Bus</span>
-                </span>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                  Campus
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden sm:block truncate max-w-[200px] lg:max-w-xs" title={collegeName}>
-                {collegeName}
-              </p>
-            </div>
+            <Logo size="md" variant="full" />
           </div>
         </div>
 
-        {/* Live SSE Status Pill & Right Actions */}
-        <div className="flex items-center gap-2 sm:gap-4">
+        {/* Zone 2: Navigation Links (When in Executive Portal template, or clean breadcrumbs) */}
+        {user && template === 'executive-portal' && (
+          <nav className="hidden md:flex items-center gap-1 overflow-x-auto py-1 px-2 rounded-2xl bg-slate-100/70 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60">
+            {executiveLinks.map(link => {
+              const isActive = activeTab === link.id;
+              return (
+                <button
+                  key={link.id}
+                  onClick={() => onTabChange && onTabChange(link.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                    isActive
+                      ? 'text-white shadow-xs font-bold'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/50'
+                  }`}
+                  style={
+                    isActive
+                      ? {
+                          backgroundColor: accentPreset.colorHex,
+                        }
+                      : {}
+                  }
+                >
+                  {link.label}
+                </button>
+              );
+            })}
+          </nav>
+        )}
+
+        {/* Zone 3: Actions (Telemetry indicator, Theme Studio, Notifications, Profile / Login) */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           
           {/* Real-time SSE indicator */}
           <div
-            className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
               isConnected
                 ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
                 : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800'
             }`}
             title={isConnected ? 'Live Telemetry Active' : 'Connecting to Transport Server...'}
           >
-            <Radio className={`w-3.5 h-3.5 ${isConnected ? 'animate-pulse text-emerald-500' : 'text-rose-500'}`} />
-            <span>{isConnected ? 'Live Feed' : 'Connecting'}</span>
+            <Radio className={`w-3 h-3 ${isConnected ? 'animate-pulse text-emerald-500' : 'text-rose-500'}`} />
+            <span>{isConnected ? 'Live' : 'Syncing'}</span>
           </div>
 
-          {/* Dark / Light Mode Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Toggle theme"
-            aria-label="Toggle theme"
-          >
-            {theme === 'dark' ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-slate-600" />}
-          </button>
+          {/* Theme, Logo & Template Studio Trigger */}
+          <ThemeSelector />
 
           {!user && onOpenAuth && (
             <div className="flex items-center gap-1.5 sm:gap-2">
@@ -133,12 +173,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, activeTab, onTa
                 onClick={() => onOpenAuth('student')}
                 className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
-                Student Login
+                Student
               </button>
               <button
                 onClick={() => onOpenAuth('admin')}
-                className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 text-xs font-bold shadow-sm hover:bg-amber-400 transition-colors flex items-center gap-1"
-                title="Changes handled only by authorized admin"
+                className="px-2.5 sm:px-3 py-1.5 rounded-xl text-white text-xs font-bold shadow-sm hover:opacity-95 transition-all flex items-center gap-1"
+                style={{ backgroundColor: accentPreset.colorHex }}
+                title="Institutional Administrator Access"
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>Admin</span>
@@ -155,9 +196,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, activeTab, onTa
                   className="relative p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                   aria-label="Notifications"
                 >
-                  <Bell className="w-5 h-5" />
+                  <Bell className="w-4 h-4" />
                   {unreadNotifsCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-slate-950 ring-2 ring-white dark:ring-slate-900">
+                    <span
+                      className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white ring-2 ring-white dark:ring-slate-900"
+                      style={{ backgroundColor: accentPreset.colorHex }}
+                    >
                       {unreadNotifsCount > 9 ? '9+' : unreadNotifsCount}
                     </span>
                   )}
@@ -169,7 +213,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, activeTab, onTa
                       <div className="flex items-center gap-2">
                         <h4 className="font-bold text-sm text-slate-900 dark:text-white">Notifications</h4>
                         {unreadNotifsCount > 0 && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-400 font-semibold">
+                          <span
+                            className="text-[10px] px-2 py-0.5 rounded-full font-bold border"
+                            style={{
+                              backgroundColor: `${accentPreset.colorHex}15`,
+                              color: accentPreset.colorHex,
+                              borderColor: `${accentPreset.colorHex}30`,
+                            }}
+                          >
                             {unreadNotifsCount} new
                           </span>
                         )}
@@ -177,7 +228,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, activeTab, onTa
                       {unreadNotifsCount > 0 && (
                         <button
                           onClick={markAllNotificationsRead}
-                          className="text-xs text-amber-600 dark:text-amber-400 hover:underline font-semibold"
+                          className="text-xs hover:underline font-semibold"
+                          style={{ color: accentPreset.colorHex }}
                         >
                           Mark all read
                         </button>
@@ -195,7 +247,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, activeTab, onTa
                             key={`${n.id}-${idx}`}
                             onClick={() => markNotificationRead(n.id)}
                             className={`py-3 px-2 rounded-xl transition-colors cursor-pointer flex items-start gap-3 ${
-                              !n.read ? 'bg-amber-50/60 dark:bg-amber-950/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                              !n.read ? 'bg-slate-50 dark:bg-slate-800/50' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
                             }`}
                           >
                             <div className="mt-0.5 shrink-0">
@@ -219,7 +271,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, activeTab, onTa
                               </span>
                             </div>
                             {!n.read && (
-                              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 mt-1.5" />
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0 mt-1.5"
+                                style={{ backgroundColor: accentPreset.colorHex }}
+                              />
                             )}
                           </div>
                         ))
@@ -235,7 +290,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, activeTab, onTa
                   onClick={() => setShowProfileMenu(prev => !prev)}
                   className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold text-xs text-slate-800 dark:text-slate-200 uppercase">
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs text-white uppercase shadow-xs"
+                    style={{ backgroundColor: accentPreset.colorHex }}
+                  >
                     {user.name.charAt(0)}
                   </div>
                   <div className="text-left hidden sm:block">
@@ -253,7 +311,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, activeTab, onTa
                     <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1">
                       <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{user.name}</p>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
-                      <p className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5">ID: {user.collegeId}</p>
+                      <p
+                        className="text-[10px] font-semibold mt-0.5"
+                        style={{ color: accentPreset.colorHex }}
+                      >
+                        ID: {user.collegeId} · {templatePreset.name}
+                      </p>
                     </div>
 
                     <button

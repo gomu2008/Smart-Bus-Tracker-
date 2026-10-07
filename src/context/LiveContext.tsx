@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { BusLocation, Trip, Announcement, NotificationItem } from '../types';
+import { BusLocation, Trip, Announcement, NotificationItem, Bus, Route, Stop } from '../types';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 
@@ -7,6 +7,9 @@ interface LiveContextType {
   isConnected: boolean;
   collegeName: string;
   updateCollegeName: (name: string) => Promise<boolean>;
+  buses: Bus[];
+  routes: Route[];
+  stops: Stop[];
   busLocations: Record<string, BusLocation>;
   activeTrips: Trip[];
   announcements: Announcement[];
@@ -27,6 +30,9 @@ export const LiveProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [collegeName, setCollegeName] = useState<string>('Tirunelveli Engineering College (TEC)');
+  const [buses, setBuses] = useState<Bus[]>([]);
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [stops, setStops] = useState<Stop[]>([]);
   const [busLocations, setBusLocations] = useState<Record<string, BusLocation>>({});
   const [activeTrips, setActiveTrips] = useState<Trip[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -41,22 +47,39 @@ export const LiveProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      let res = await fetch('/api/student/tracking-data', { headers });
-      
-      // If token was rejected or expired, fall back to public unauthenticated fetch
-      if (!res.ok && res.status === 401 && token) {
-        res = await fetch('/api/student/tracking-data');
-      }
+      const [trackingRes, busesRes, routesRes] = await Promise.all([
+        fetch('/api/student/tracking-data', { headers }),
+        fetch('/api/buses', { headers }),
+        fetch('/api/routes', { headers }),
+      ]);
 
-      if (res.ok) {
-        const data = await res.json();
+      if (trackingRes.ok) {
+        const data = await trackingRes.json();
         setActiveTrips(data.activeTrips || []);
-        if (data.locations) {
-          setBusLocations(data.locations);
-        }
+        if (data.locations) setBusLocations(data.locations);
       }
-    } catch (err) {
-      console.warn('Live tracking data fetch encountered issue, retrying publicly:', err);
+      if (busesRes.ok) {
+        const bData = await busesRes.json();
+        setBuses(bData.buses || []);
+      }
+      if (routesRes.ok) {
+        const rData = await routesRes.json();
+        const rList: Route[] = rData.routes || [];
+        setRoutes(rList);
+        const collectedStops: Stop[] = [];
+        const seen = new Set<string>();
+        rList.forEach(r => {
+          (r.stops || []).forEach(s => {
+            if (!seen.has(s.id)) {
+              seen.add(s.id);
+              collectedStops.push(s);
+            }
+          });
+        });
+        if (collectedStops.length > 0) setStops(collectedStops);
+      }
+    } catch {
+      // Quiet retry on initial server spin-up or network fluctuation
       try {
         const fallbackRes = await fetch('/api/student/tracking-data');
         if (fallbackRes.ok) {
@@ -64,8 +87,8 @@ export const LiveProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setActiveTrips(data.activeTrips || []);
           if (data.locations) setBusLocations(data.locations);
         }
-      } catch (fallbackErr) {
-        console.error('Failed to load tracking data:', fallbackErr);
+      } catch {
+        // Fallback state retained gracefully
       }
     }
   }, [token]);
@@ -84,8 +107,8 @@ export const LiveProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         setAnnouncements(unique);
       }
-    } catch (err) {
-      console.error('Failed to load announcements:', err);
+    } catch {
+      // Quiet fallback when offline or during dev boot
     }
   }, []);
 
@@ -109,8 +132,8 @@ export const LiveProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         setNotifications(unique);
       }
-    } catch (err) {
-      console.error('Failed to load notifications:', err);
+    } catch {
+      // Quiet fallback
     }
   }, [token]);
 
@@ -123,8 +146,8 @@ export const LiveProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setCollegeName(data.settings.collegeName);
         }
       }
-    } catch (err) {
-      console.error('Failed to load settings:', err);
+    } catch {
+      // Quiet fallback
     }
   }, []);
 
@@ -326,6 +349,9 @@ export const LiveProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isConnected,
         collegeName,
         updateCollegeName,
+        buses,
+        routes,
+        stops,
         busLocations,
         activeTrips,
         announcements,

@@ -116,6 +116,15 @@ class BusSimulator {
     if (!settings.demoMode) return;
 
     for (const trip of activeTrips) {
+      // Prioritize live hardware / device GPS: If bus is actively transmitting real GPS (within last 35s), do not overwrite!
+      const existingLoc = allLocations[trip.busId];
+      if (existingLoc && !existingLoc.isSimulated) {
+        const diffSec = (now.getTime() - new Date(existingLoc.timestamp).getTime()) / 1000;
+        if (diffSec < 35) {
+          continue; // Leave real vehicle GPS active
+        }
+      }
+
       const route = routes.find(r => r.id === trip.routeId);
       if (!route || !route.stops || route.stops.length < 2) continue;
 
