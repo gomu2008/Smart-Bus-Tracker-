@@ -8,6 +8,7 @@ import { Sidebar } from './components/Sidebar';
 import { Logo } from './components/Logo';
 import { ThemeStudioModal } from './components/ThemeStudioModal';
 import { LeafletMap } from './components/LeafletMap';
+import { A3PosterStudio } from './components/A3PosterStudio';
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/AuthPage';
 import { StudentDashboard } from './pages/StudentDashboard';
@@ -26,6 +27,25 @@ const AppContent: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [authViewRole, setAuthViewRole] = useState<UserRole | null>(null);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [showPosterModal, setShowPosterModal] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash;
+      const search = window.location.search;
+      return hash === '#poster' || search.includes('poster');
+    }
+    return false;
+  });
+
+  // Listen for hash changes
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (window.location.hash === '#poster') {
+        setShowPosterModal(true);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // Set default tab based on role when user logs in
   useEffect(() => {
@@ -51,6 +71,30 @@ const AppContent: React.FC = () => {
 
   // Not signed in
   if (!user) {
+    if (showPosterModal) {
+      return (
+        <div>
+          <div className="no-print bg-slate-900 text-white px-4 py-2 flex items-center justify-between border-b border-slate-800 text-xs font-bold">
+            <button
+              onClick={() => {
+                setShowPosterModal(false);
+                if (window.location.hash === '#poster') {
+                  window.history.pushState(null, '', window.location.pathname);
+                }
+              }}
+              className="hover:text-amber-400 transition-colors flex items-center gap-1.5"
+            >
+              <span>← Back to Campus Portal</span>
+            </button>
+            <span className="text-amber-400 font-mono text-[11px]">
+              College Bus Tracker & Safety System · A3 Printable Poster & Emergency Contacts
+            </span>
+          </div>
+          <A3PosterStudio />
+        </div>
+      );
+    }
+
     if (showAuthModal || authViewRole) {
       return (
         <>
@@ -70,7 +114,9 @@ const AppContent: React.FC = () => {
     return (
       <div>
         <Navbar
-          onTabChange={() => {}}
+          onTabChange={tab => {
+            if (tab === 'poster') setShowPosterModal(true);
+          }}
           onOpenAuth={role => {
             setAuthViewRole(role || 'student');
             setShowAuthModal(true);
@@ -81,6 +127,7 @@ const AppContent: React.FC = () => {
             setAuthViewRole(role || 'student');
             setShowAuthModal(true);
           }}
+          onOpenPoster={() => setShowPosterModal(true)}
         />
         <ThemeStudioModal />
       </div>
@@ -89,6 +136,9 @@ const AppContent: React.FC = () => {
 
   // Render Dashboard Component according to role
   const renderDashboard = () => {
+    if (activeTab === 'poster') {
+      return <A3PosterStudio />;
+    }
     if (user.role === 'admin') {
       return <AdminDashboard activeTab={activeTab} onTabChange={tab => setActiveTab(tab)} />;
     }
