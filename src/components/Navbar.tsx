@@ -14,7 +14,6 @@ import {
   Info,
   Clock,
   ShieldCheck,
-  FileText,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -168,15 +167,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, activeTab, onTa
           {/* Theme, Logo & Template Studio Trigger */}
           <ThemeSelector />
 
-          {!user && (
-            <button
-              onClick={() => onTabChange && onTabChange('poster')}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-all"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>A3 Poster</span>
-            </button>
-          )}
+
 
           {!user && onOpenAuth && (
             <div className="flex items-center gap-1.5 sm:gap-2">

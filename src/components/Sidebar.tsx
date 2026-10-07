@@ -18,7 +18,6 @@ import {
   X,
   Sparkles,
   Sliders,
-  FileText,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -39,7 +38,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isOpen
     { id: 'timetable', label: 'Route Timetable', icon: Clock },
     { id: 'favorites', label: 'Saved Stops', icon: Bookmark },
     { id: 'announcements', label: 'Announcements', icon: Megaphone },
-    { id: 'poster', label: 'A3 Safety Poster (Print)', icon: FileText },
     { id: 'feedback', label: 'Report Issue / Feedback', icon: MessageSquareWarning },
     { id: 'profile', label: 'Profile & Settings', icon: User },
   ];
@@ -49,7 +47,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isOpen
     { id: 'timetable', label: 'Transit Timetable', icon: Clock },
     { id: 'seating', label: 'Faculty Reserved Seating', icon: ShieldCheck },
     { id: 'favorites', label: 'Saved Stops', icon: Bookmark },
-    { id: 'poster', label: 'A3 Safety Poster (Print)', icon: FileText },
     { id: 'announcements', label: 'Campus Bulletins', icon: Megaphone },
     { id: 'feedback', label: 'Department Feedback', icon: MessageSquareWarning },
     { id: 'profile', label: 'Staff Profile', icon: User },
@@ -58,7 +55,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isOpen
   const driverLinks = [
     { id: 'dispatch', label: 'Active Trip Control', icon: Gauge },
     { id: 'route_stops', label: 'Stops & Timings', icon: Clock },
-    { id: 'poster', label: 'A3 Safety Poster (Print)', icon: FileText },
     { id: 'announcements', label: 'Announcements', icon: Megaphone },
     { id: 'profile', label: 'Profile & Vehicle', icon: User },
   ];
@@ -69,7 +65,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isOpen
     { id: 'routes', label: 'Routes & Stops Picker', icon: MapPin },
     { id: 'users', label: 'Users & Driver Approvals', icon: Users },
     { id: 'map_tactical', label: 'Live Fleet Radar', icon: Compass },
-    { id: 'poster', label: 'A3 Safety Poster (Print)', icon: FileText },
     { id: 'announcements', label: 'Broadcast Announcements', icon: Megaphone },
     { id: 'feedback', label: 'Student Feedback & Issues', icon: MessageSquareWarning },
     { id: 'reports', label: 'Data Reports & CSV', icon: FileSpreadsheet },

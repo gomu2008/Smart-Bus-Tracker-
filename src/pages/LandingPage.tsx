@@ -1,15 +1,14 @@
 import React from 'react';
-import { ShieldCheck, Clock, Navigation, ArrowRight, Radio, Compass, Users, Sparkles, FileText, Layers, Award } from 'lucide-react';
+import { ShieldCheck, Clock, Navigation, ArrowRight, Radio, Compass, Users, Sparkles } from 'lucide-react';
 import { useLive } from '../context/LiveContext';
 import { useTheme } from '../context/ThemeContext';
 import { Logo } from '../components/Logo';
 
 interface LandingPageProps {
   onOpenAuth: (defaultRole?: 'student' | 'driver' | 'admin' | 'staff') => void;
-  onOpenPoster?: () => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth, onOpenPoster }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth }) => {
   const { collegeName } = useLive();
   const { accentPreset, openStudio, templatePreset, brandName } = useTheme();
 
@@ -98,55 +97,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenAuth, onOpenPost
                   <ShieldCheck className="w-4 h-4" style={{ color: accentPreset.colorHex }} />
                   <span>Admin Portal</span>
                 </button>
-
-                {onOpenPoster && (
-                  <button
-                    onClick={onOpenPoster}
-                    className="px-6 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-sm shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
-                  >
-                    <FileText className="w-4 h-4 text-slate-950" />
-                    <span>A3 Safety Poster (Print)</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Featured A3 Poster Showcase Banner */}
-              <div className="mt-8 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
-                <div className="flex items-center gap-4">
-                  <div className="relative w-14 h-18 rounded-xl overflow-hidden shadow-md shrink-0 border-2 border-amber-500/40 bg-slate-900">
-                    <img
-                      src="/src/assets/images/bus_safety_poster_cover_1791371301103.jpg"
-                      alt="A3 Poster Preview"
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-500 text-slate-950">
-                        ISO A3 Print Standard (297 × 420 mm)
-                      </span>
-                      <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
-                        Notice Board & In-Cabin Emergency Poster
-                      </span>
-                    </div>
-                    <h4 className="text-sm font-extrabold text-slate-900 dark:text-white mt-1">
-                      College Bus Safety Management & Emergency Contact Poster
-                    </h4>
-                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                      Contains 24/7 Transport Control Room hotline, TPMS Wheel Burst protocol, Gyro Rollover SOS beacon & OpenStreetMap QR tracker.
-                    </p>
-                  </div>
-                </div>
-                {onOpenPoster && (
-                  <button
-                    onClick={onOpenPoster}
-                    className="shrink-0 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-all"
-                  >
-                    <span>Open A3 Poster Studio</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                )}
               </div>
 
               {/* Quick portal hint banner */}
