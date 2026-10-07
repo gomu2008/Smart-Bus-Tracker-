@@ -1,8 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import L from 'leaflet';
 import { Bus, Route, Stop, BusLocation } from '../types';
 import { useTheme } from '../context/ThemeContext';
-import { Navigation, Maximize2, ShieldAlert } from 'lucide-react';
+import { Navigation, Maximize2, ShieldAlert, AlertTriangle, Wrench, ZoomIn, ZoomOut, Compass } from 'lucide-react';
 
 interface LeafletMapProps {
   buses?: Bus[];
@@ -17,6 +17,55 @@ interface LeafletMapProps {
   tempMarker?: { lat: number; lng: number; label?: string } | null;
   interactivePickMode?: boolean;
   className?: string;
+  selectedPickupStopId?: string;
+  autoFocusEmergency?: boolean;
+}
+
+// Distance from point to line segment in km (Equirectangular approximation)
+function distanceToSegmentKm(pLat: number, pLng: number, aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const midLat = ((aLat + bLat) / 2) * (Math.PI / 180);
+  const kx = Math.cos(midLat) * 111.32;
+  const ky = 110.574;
+
+  const px = pLng * kx;
+  const py = pLat * ky;
+  const ax = aLng * kx;
+  const ay = aLat * ky;
+  const bx = bLng * kx;
+  const by = bLat * ky;
+
+  const abx = bx - ax;
+  const aby = by - ay;
+  const lenSq = abx * abx + aby * aby;
+  if (lenSq === 0) {
+    const dx = px - ax;
+    const dy = py - ay;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  const t = Math.max(0, Math.min(1, ((px - ax) * abx + (py - ay) * aby) / lenSq));
+  const projx = ax + t * abx;
+  const projy = ay + t * aby;
+  const dx = px - projx;
+  const dy = py - projy;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+// Check minimum distance from bus to any segment of its route
+function getRouteDeviationKm(busLat: number, busLng: number, route: Route): number {
+  if (!route.stops || route.stops.length < 2) return 0;
+  let minDistance = Infinity;
+
+  for (let i = 0; i < route.stops.length - 1; i++) {
+    const s1 = route.stops[i];
+    const s2 = route.stops[i + 1];
+    if (s1.latitude && s1.longitude && s2.latitude && s2.longitude) {
+      const dist = distanceToSegmentKm(busLat, busLng, s1.latitude, s1.longitude, s2.latitude, s2.longitude);
+      if (dist < minDistance) minDistance = dist;
+    }
+  }
+
+  return minDistance === Infinity ? 0 : minDistance;
 }
 
 export const LeafletMap: React.FC<LeafletMapProps> = ({
@@ -32,18 +81,36 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   tempMarker,
   interactivePickMode = false,
   className = 'h-[500px] w-full',
+  selectedPickupStopId,
+  autoFocusEmergency = true,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const busMarkersRef = useRef<Map<string, L.Marker>>(new Map());
   const stopMarkersRef = useRef<Map<string, L.Marker>>(new Map());
   const routePolylinesRef = useRef<Map<string, L.Polyline>>(new Map());
+  const deviationLinesRef = useRef<Map<string, L.Polyline>>(new Map());
   const tempMarkerRef = useRef<L.Marker | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const hasFocusedEmergencyRef = useRef<string | null>(null);
 
-  const { theme } = useTheme();
+  const { theme, accentPreset } = useTheme();
+  const [activeEmergencyBus, setActiveEmergencyBus] = useState<{ bus: Bus; message: string } | null>(null);
 
-  // Initialize Map
+  // Check for any bus with active emergency
+  const emergencyInfo = useMemo(() => {
+    for (const b of buses) {
+      const alert = b.activeTrip?.emergencyAlert;
+      if (alert) return { bus: b, message: alert };
+    }
+    return null;
+  }, [buses]);
+
+  useEffect(() => {
+    setActiveEmergencyBus(emergencyInfo);
+  }, [emergencyInfo]);
+
+  // 1. Initialize Map with OpenStreetMap (Leaflet.js)
   useEffect(() => {
     if (!mapContainerRef.current) return;
     if (mapInstanceRef.current) return;
@@ -55,17 +122,36 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       zoomControl: false,
     });
 
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
-
     mapInstanceRef.current = map;
 
+    // Fix tile rendering on mount
+    const resizeTimer = setTimeout(() => {
+      map.invalidateSize();
+    }, 250);
+
     return () => {
+      clearTimeout(resizeTimer);
       map.remove();
       mapInstanceRef.current = null;
     };
   }, []);
 
-  // Update Tile Layer based on theme
+  // 2. ResizeObserver to keep tiles pristine when containers resize
+  useEffect(() => {
+    const container = mapContainerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver(() => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize();
+      }
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  // 3. Tile Layer using OpenStreetMap (OSM)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -81,8 +167,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
     const attribution =
       theme === 'dark'
-        ? '&copy; <a href="https://carto.com/">CARTO</a>'
-        : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+        ? '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
     tileLayerRef.current = L.tileLayer(tileUrl, {
       attribution,
@@ -90,7 +176,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     }).addTo(map);
   }, [theme]);
 
-  // Click Handler for Admin Stop Placement
+  // 4. Map click handler for interactive stop pin placing
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -107,7 +193,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     };
   }, [onMapClick]);
 
-  // Render Temp Marker (for Stop creation)
+  // 5. Render Temp Pin (Stop Picker)
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
@@ -119,12 +205,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         const pinIcon = L.divIcon({
           className: 'custom-temp-pin',
           html: `
-            <div style="background-color: #ef4444; color: white; width: 32px; height: 32px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 2px solid white;">
-              <div style="transform: rotate(45deg); font-weight: bold; font-size: 14px;">📍</div>
+            <div style="background-color: #ef4444; color: white; width: 34px; height: 34px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.4); border: 2.5px solid white;">
+              <div style="transform: rotate(45deg); font-weight: bold; font-size: 15px;">📍</div>
             </div>
           `,
-          iconSize: [32, 32],
-          iconAnchor: [16, 32],
+          iconSize: [34, 34],
+          iconAnchor: [17, 34],
         });
 
         tempMarkerRef.current = L.marker([tempMarker.lat, tempMarker.lng], { icon: pinIcon }).addTo(map);
@@ -135,12 +221,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     }
   }, [tempMarker]);
 
-  // Render Route Polylines
+  // 6. Render Route Polylines
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    // Clear existing polylines
+    // Clear old lines
     routePolylinesRef.current.forEach(polyline => map.removeLayer(polyline));
     routePolylinesRef.current.clear();
 
@@ -159,27 +245,26 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
       const isSelected = selectedRouteId === route.id;
       const polyline = L.polyline(latlngs, {
-        color: route.color || '#F59E0B',
+        color: route.color || accentPreset.colorHex,
         weight: isSelected ? 6 : 4,
         opacity: isSelected ? 0.95 : 0.65,
         dashArray: isSelected ? undefined : '6, 6',
       }).addTo(map);
 
       polyline.bindTooltip(
-        `<b>${route.name}</b><br/><span style="font-size: 11px;">${route.stops.length} stops · ${route.estimatedDurationMinutes} mins</span>`,
+        `<b>${route.name} (${route.routeNumber})</b><br/><span style="font-size: 11px;">${route.stops.length} stops · ~${route.estimatedDurationMinutes} mins</span>`,
         { sticky: true }
       );
 
       routePolylinesRef.current.set(route.id, polyline);
     });
-  }, [routes, selectedRouteId]);
+  }, [routes, selectedRouteId, accentPreset]);
 
-  // Render Stop Markers
+  // 7. Render Stop Markers & Student Pickup Point
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    // Clear removed stops
     const currentStopIds = new Set(stops.map(s => s.id));
     stopMarkersRef.current.forEach((marker, id) => {
       if (!currentStopIds.has(id)) {
@@ -188,51 +273,95 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
     });
 
+    const activePickupId = selectedPickupStopId || selectedStopId;
+
     stops.forEach(stop => {
       if (!stop.latitude || !stop.longitude) return;
 
-      const isSelected = selectedStopId === stop.id;
-      const markerHtml = `
-        <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer;">
-          <div style="
-            background: ${isSelected ? '#F59E0B' : '#1E293B'};
-            color: ${isSelected ? '#000000' : '#FFFFFF'};
-            border: 2px solid ${isSelected ? '#FFFFFF' : '#64748B'};
-            border-radius: 9999px;
-            width: ${isSelected ? '26px' : '20px'};
-            height: ${isSelected ? '26px' : '20px'};
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 10px;
-            font-weight: 700;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.35);
-            transition: all 0.2s ease;
-          " class="${isSelected ? 'stop-marker-pulse' : ''}">
-            ${stop.stopOrder || '●'}
+      const isPickup = activePickupId === stop.id;
+
+      let markerHtml = '';
+      if (isPickup) {
+        // High-visibility Student Pickup Point Indicator
+        markerHtml = `
+          <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer; z-index: 1000;">
+            <div style="
+              background: #2563eb;
+              color: #ffffff;
+              font-size: 10px;
+              font-weight: 800;
+              padding: 2px 7px;
+              border-radius: 9999px;
+              white-space: nowrap;
+              border: 1.5px solid #ffffff;
+              box-shadow: 0 4px 10px rgba(37,99,235,0.5);
+              margin-bottom: 2px;
+              display: flex;
+              align-items: center;
+              gap: 3px;
+            ">
+              <span>📍 Your Pickup Point</span>
+            </div>
+            <div style="
+              background: #2563eb;
+              color: #ffffff;
+              border: 3px solid #ffffff;
+              border-radius: 50%;
+              width: 28px;
+              height: 28px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 11px;
+              font-weight: 800;
+              box-shadow: 0 0 0 6px rgba(37,99,235,0.3);
+            ">
+              ★
+            </div>
           </div>
-          <span style="
-            margin-top: 2px;
-            font-size: 10px;
-            font-weight: 600;
-            background: rgba(15, 23, 42, 0.85);
-            color: #f8fafc;
-            padding: 1px 6px;
-            border-radius: 4px;
-            white-space: nowrap;
-            max-width: 110px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-          ">${stop.name}</span>
-        </div>
-      `;
+        `;
+      } else {
+        // Standard Stop Marker
+        markerHtml = `
+          <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer;">
+            <div style="
+              background: #1e293b;
+              color: #ffffff;
+              border: 2px solid #64748b;
+              border-radius: 9999px;
+              width: 20px;
+              height: 20px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 10px;
+              font-weight: 700;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            ">
+              ${stop.stopOrder || '●'}
+            </div>
+            <span style="
+              margin-top: 2px;
+              font-size: 9.5px;
+              font-weight: 600;
+              background: rgba(15, 23, 42, 0.85);
+              color: #f8fafc;
+              padding: 1px 5px;
+              border-radius: 4px;
+              white-space: nowrap;
+              max-width: 100px;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            ">${stop.name}</span>
+          </div>
+        `;
+      }
 
       const stopIcon = L.divIcon({
         className: 'custom-stop-marker',
         html: markerHtml,
-        iconSize: [110, 40],
-        iconAnchor: [55, 12],
+        iconSize: [isPickup ? 140 : 100, isPickup ? 55 : 35],
+        iconAnchor: [isPickup ? 70 : 50, isPickup ? 45 : 12],
       });
 
       let marker = stopMarkersRef.current.get(stop.id);
@@ -247,30 +376,29 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         stopMarkersRef.current.set(stop.id, marker);
       }
 
-      // Popup Content
+      // Popup
       marker.bindPopup(`
         <div style="padding: 12px; min-width: 180px;">
-          <div style="font-weight: 700; font-size: 13px; color: #0f172a; margin-bottom: 2px;">${stop.name}</div>
-          <div style="font-size: 11px; color: #64748b; margin-bottom: 6px;">Code: <span style="font-weight: 600; color: #d97706;">${stop.code}</span></div>
+          <div style="font-weight: 800; font-size: 13px; color: #0f172a; margin-bottom: 2px;">${stop.name}</div>
+          <div style="font-size: 11px; color: #64748b; margin-bottom: 4px;">Stop Code: <b style="color: #2563eb;">${stop.code}</b></div>
           ${stop.landmark ? `<div style="font-size: 11px; color: #475569; margin-bottom: 4px;">📍 ${stop.landmark}</div>` : ''}
-          ${stop.address ? `<div style="font-size: 11px; color: #64748b;">${stop.address}</div>` : ''}
-          <div style="margin-top: 8px; pt-2; border-top: 1px solid #e2e8f0; font-size: 11px; color: #2563eb; font-weight: 600;">
-            Click to set as pickup stop
+          ${stop.address ? `<div style="font-size: 11px; color: #64748b; margin-bottom: 6px;">${stop.address}</div>` : ''}
+          <div style="font-size: 11px; color: #2563eb; font-weight: 700; border-top: 1px solid #e2e8f0; padding-top: 6px;">
+            ${isPickup ? '✓ Currently Selected as your Boarding Stop' : 'Click to select as your Pickup Stop'}
           </div>
         </div>
       `);
     });
-  }, [stops, selectedStopId, onStopSelect]);
+  }, [stops, selectedStopId, selectedPickupStopId, onStopSelect]);
 
-  // Render & Animate Bus Markers
+  // 8. Render Bus Markers with 4 DISTINCT Statuses (Active, Delayed, Emergency, Under Repair) & Route Deviation
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    // Keep active bus IDs
     const activeBusIds = new Set(buses.map(b => b.id));
 
-    // Remove defunct markers
+    // Remove old bus markers
     busMarkersRef.current.forEach((marker, id) => {
       if (!activeBusIds.has(id)) {
         map.removeLayer(marker);
@@ -278,90 +406,204 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
     });
 
+    // Remove old deviation lines
+    deviationLinesRef.current.forEach(line => map.removeLayer(line));
+    deviationLinesRef.current.clear();
+
     buses.forEach(bus => {
       const loc = locations[bus.id];
       if (!loc || !loc.latitude || !loc.longitude) return;
 
       const trip = bus.activeTrip;
-      const isDelayed = (loc.delayMinutes || trip?.delayMinutes || 0) > 0;
-      const delayMins = loc.delayMinutes || trip?.delayMinutes || 0;
+      const hasEmergency = Boolean(trip?.emergencyAlert);
+      const isUnderRepair = bus.status === 'maintenance' || bus.condition === 'needs_service';
+      const delayMinutes = loc.delayMinutes || trip?.delayMinutes || 0;
+      const isDelayed = delayMinutes > 0;
       const speedKmH = Math.round(loc.speed || 0);
-      const isSignalLost = (Date.now() - new Date(loc.timestamp).getTime()) > 60000;
 
-      // Status indicator color: Green = active/on-time, Amber = delayed, Red = signal lost
-      const badgeBg = isSignalLost ? '#ef4444' : isDelayed ? '#f59e0b' : '#10b981';
+      // Check route deviation (if bus is assigned to a route with stops)
+      const assignedRoute = routes.find(r => r.id === (trip?.routeId || bus.currentRouteId));
+      let isDeviated = false;
+      let deviationKm = 0;
+      if (assignedRoute && !isUnderRepair && assignedRoute.stops && assignedRoute.stops.length >= 2) {
+        deviationKm = getRouteDeviationKm(loc.latitude, loc.longitude, assignedRoute);
+        if (deviationKm > 0.35) { // more than 350 meters off route corridor
+          isDeviated = true;
+        }
+      }
+
+      // Draw deviation indicator line if off-course
+      if (isDeviated && assignedRoute && assignedRoute.stops && assignedRoute.stops.length > 0) {
+        // Find nearest stop on assigned route
+        let nearestStop = assignedRoute.stops[0];
+        let nearestDist = Infinity;
+        assignedRoute.stops.forEach(s => {
+          if (s.latitude && s.longitude) {
+            const d = Math.hypot(s.latitude - loc.latitude, s.longitude - loc.longitude);
+            if (d < nearestDist) {
+              nearestDist = d;
+              nearestStop = s;
+            }
+          }
+        });
+
+        if (nearestStop.latitude && nearestStop.longitude) {
+          const devLine = L.polyline(
+            [[loc.latitude, loc.longitude], [nearestStop.latitude, nearestStop.longitude]],
+            { color: '#ef4444', weight: 2.5, dashArray: '5, 5', opacity: 0.8 }
+          ).addTo(map);
+          devLine.bindTooltip(`⚠️ Route Deviation: ~${(deviationKm * 1000).toFixed(0)}m off scheduled path`, { sticky: true });
+          deviationLinesRef.current.set(bus.id, devLine);
+        }
+      }
+
+      // 4 Distinct Marker Visual Styles:
+      // Status 1: Emergency / SOS
+      // Status 2: Under Repair / Maintenance
+      // Status 3: Delayed Bus
+      // Status 4: Active / On-Time Bus
+      let statusBg = '#10b981'; // Green (Active)
+      let statusText = `${speedKmH} km/h`;
+      let badgeBorder = '#ffffff';
+      let iconColor = '#000000';
+      let pulseClass = 'bus-marker-pulse';
+      let centerIconSvg = '';
+
+      if (hasEmergency) {
+        statusBg = '#dc2626'; // Red (Emergency)
+        statusText = '🚨 SOS EMERGENCY';
+        badgeBorder = '#fee2e2';
+        iconColor = '#ffffff';
+        pulseClass = 'animate-ping';
+        centerIconSvg = `
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        `;
+      } else if (isUnderRepair) {
+        statusBg = '#f97316'; // Orange / Wrench (Under Repair)
+        statusText = '🔧 UNDER REPAIR';
+        badgeBorder = '#ffedd5';
+        iconColor = '#ffffff';
+        pulseClass = '';
+        centerIconSvg = `
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+          </svg>
+        `;
+      } else if (isDelayed) {
+        statusBg = '#f59e0b'; // Amber (Delayed)
+        statusText = `+${delayMinutes}m DELAYED`;
+        badgeBorder = '#fef3c7';
+        iconColor = '#000000';
+        pulseClass = 'bus-marker-pulse';
+        centerIconSvg = `
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        `;
+      } else {
+        // Standard Active Bus
+        statusBg = '#10b981'; // Green
+        statusText = `${speedKmH} km/h (Active)`;
+        badgeBorder = '#ffffff';
+        iconColor = '#000000';
+        pulseClass = 'bus-marker-pulse';
+        centerIconSvg = `
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>
+            <circle cx="7" cy="17" r="2"/>
+            <path d="M9 17h6"/>
+            <circle cx="17" cy="17" r="2"/>
+          </svg>
+        `;
+      }
 
       const busHtml = `
         <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer;">
-          <!-- Speed / Status Tag -->
+          <!-- Top Speed / Status Badge -->
           <div style="
             background: #0f172a;
             color: #ffffff;
             font-size: 10px;
-            font-weight: 700;
-            padding: 1px 6px;
+            font-weight: 800;
+            padding: 2px 7px;
             border-radius: 9999px;
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 1.5px solid ${badgeBorder};
             white-space: nowrap;
             margin-bottom: 2px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.35);
             display: flex;
             align-items: center;
-            gap: 3px;
+            gap: 4px;
           ">
-            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: ${badgeBg};"></span>
-            <span>${isSignalLost ? 'LOST' : `${speedKmH} km/h`}</span>
+            <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background-color: ${statusBg};"></span>
+            <span>${statusText}</span>
           </div>
 
-          <!-- Bus Icon Badge with Heading Pointer -->
+          ${isDeviated ? `
+            <div style="
+              background: #ef4444;
+              color: white;
+              font-size: 9px;
+              font-weight: 800;
+              padding: 1px 5px;
+              border-radius: 4px;
+              margin-bottom: 2px;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            ">⚠️ OFF ROUTE (~${(deviationKm * 1000).toFixed(0)}m)</div>
+          ` : ''}
+
+          <!-- Bus Circular Emblem -->
           <div style="position: relative;">
             <div style="
-              width: 38px;
-              height: 38px;
-              background-color: #F59E0B;
-              border: 3px solid #FFFFFF;
+              width: 40px;
+              height: 40px;
+              background-color: ${statusBg};
+              border: 3px solid #ffffff;
               border-radius: 50%;
               display: flex;
               align-items: center;
               justify-content: center;
-              box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-            " class="bus-marker-pulse">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/>
-                <circle cx="7" cy="17" r="2"/>
-                <path d="M9 17h6"/>
-                <circle cx="17" cy="17" r="2"/>
-              </svg>
+              box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+            " class="${pulseClass}">
+              ${centerIconSvg}
             </div>
-            
-            <!-- Heading Needle -->
-            <div style="
-              position: absolute;
-              top: -6px;
-              left: 50%;
-              transform: translateX(-50%) rotate(${loc.heading || 0}deg);
-              transform-origin: bottom center;
-              width: 0;
-              height: 0;
-              border-left: 5px solid transparent;
-              border-right: 5px solid transparent;
-              border-bottom: 8px solid #F59E0B;
-            "></div>
+
+            <!-- Orientation Heading Needle (hidden on workshop buses) -->
+            ${!isUnderRepair ? `
+              <div style="
+                position: absolute;
+                top: -6px;
+                left: 50%;
+                transform: translateX(-50%) rotate(${loc.heading || 0}deg);
+                transform-origin: bottom center;
+                width: 0;
+                height: 0;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-bottom: 8px solid ${statusBg};
+              "></div>
+            ` : ''}
           </div>
 
-          <!-- Bus Plate / Name -->
+          <!-- Bus Number & Plate Tag -->
           <div style="
-            margin-top: 2px;
-            background: rgba(15, 23, 42, 0.9);
-            color: #fbbf24;
+            margin-top: 3px;
+            background: rgba(15, 23, 42, 0.95);
+            color: #ffffff;
             font-size: 10px;
             font-weight: 700;
-            padding: 1px 5px;
+            padding: 1px 6px;
             border-radius: 4px;
             white-space: nowrap;
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.15);
           ">
-            ${bus.plateNumber}
+            ${bus.busNumber}
           </div>
         </div>
       `;
@@ -369,8 +611,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       const busIcon = L.divIcon({
         className: 'custom-bus-marker',
         html: busHtml,
-        iconSize: [90, 75],
-        iconAnchor: [45, 38],
+        iconSize: [110, 85],
+        iconAnchor: [55, 42],
       });
 
       let marker = busMarkersRef.current.get(bus.id);
@@ -385,48 +627,66 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         busMarkersRef.current.set(bus.id, marker);
       }
 
-      // Popup Content
-      const condColor = bus.condition === 'excellent' ? '#16a34a' : bus.condition === 'good' ? '#059669' : bus.condition === 'fair' ? '#d97706' : '#dc2626';
-      const condBg = bus.condition === 'excellent' ? '#dcfce7' : bus.condition === 'good' ? '#ecfdf5' : bus.condition === 'fair' ? '#fef3c7' : '#fee2e2';
-      const condLabel = bus.condition ? bus.condition.replace('_', ' ').toUpperCase() : 'GOOD';
-      const hasAC = bus.features?.includes('Air Conditioned');
+      // Popup content with detailed diagnostics
+      const statusTitle = hasEmergency
+        ? '🚨 EMERGENCY ALERT'
+        : isUnderRepair
+        ? '🔧 UNDER REPAIR / MAINTENANCE'
+        : isDelayed
+        ? `⚠️ DELAYED (+${delayMinutes}m)`
+        : '🟢 ACTIVE & ON-TIME';
 
       marker.bindPopup(`
-        <div style="padding: 12px; min-width: 220px; font-family: inherit;">
+        <div style="padding: 12px; min-width: 230px; font-family: inherit;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
             <span style="font-weight: 800; font-size: 14px; color: #0f172a;">${bus.busNumber}</span>
-            <span style="background: ${isDelayed ? '#fef3c7' : '#dcfce7'}; color: ${isDelayed ? '#b45309' : '#15803d'}; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">
-              ${isDelayed ? `+${delayMins}m Late` : 'On Time'}
+            <span style="background: ${hasEmergency ? '#fee2e2' : isUnderRepair ? '#ffedd5' : isDelayed ? '#fef3c7' : '#dcfce7'}; color: ${hasEmergency ? '#b91c1c' : isUnderRepair ? '#c2410c' : isDelayed ? '#b45309' : '#15803d'}; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px;">
+              ${statusTitle}
             </span>
           </div>
-          <div style="font-size: 11px; color: #475569; margin-bottom: 3px;">Plate: <b style="font-family: monospace;">${bus.plateNumber}</b></div>
-          <div style="font-size: 11px; color: #475569; margin-bottom: 3px;">Model: <b>${bus.model || 'Standard Shuttle'}</b> (${bus.fuelType || 'Diesel'})</div>
-          <div style="display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 4px 0;">
-            <span style="font-size: 10px; font-weight: 700; background: ${condBg}; color: ${condColor}; padding: 1px 6px; border-radius: 4px;">
-              Overall: ${condLabel}
+          
+          ${hasEmergency ? `
+            <div style="background: #fef2f2; border: 1.5px solid #f87171; color: #991b1b; padding: 8px; border-radius: 8px; font-size: 11px; font-weight: 700; margin-bottom: 8px;">
+              ⚠️ Incident: ${trip?.emergencyAlert}
+            </div>
+          ` : ''}
+
+          ${isDeviated ? `
+            <div style="background: #fff7ed; border: 1.5px solid #fdba74; color: #c2410c; padding: 6px; border-radius: 6px; font-size: 10.5px; font-weight: 700; margin-bottom: 8px;">
+              ⚠️ Route Deviation: Vehicle is ${(deviationKm * 1000).toFixed(0)}m off designated corridor.
+            </div>
+          ` : ''}
+
+          <div style="font-size: 11px; color: #475569; margin-bottom: 2px;">Plate: <b style="font-family: monospace;">${bus.plateNumber}</b></div>
+          <div style="font-size: 11px; color: #475569; margin-bottom: 4px;">Model: <b>${bus.model || 'College Transit Shuttle'}</b> (${bus.fuelType || 'Diesel'})</div>
+          
+          <div style="display: flex; gap: 4px; margin-bottom: 6px;">
+            <span style="font-size: 10px; font-weight: 700; background: #f1f5f9; color: #0f172a; padding: 2px 6px; border-radius: 4px; border: 1px solid #cbd5e1;">
+              🛑 Brake Pads: ${bus.brakePadLifePercent ?? 88}%
             </span>
-            ${hasAC ? '<span style="font-size: 10px; font-weight: 700; background: #e0f2fe; color: #0369a1; padding: 1px 6px; border-radius: 4px;">❄️ AC</span>' : ''}
-          </div>
-          <!-- Brake & Wheel Diagnostics -->
-          <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px;">
-            <span style="font-size: 9.5px; font-weight: 700; background: #f1f5f9; color: #0f172a; padding: 2px 6px; border-radius: 4px; border: 1px solid #cbd5e1;">
-              🛑 Brakes: <b style="color: ${bus.brakeCondition === 'fair' ? '#d97706' : bus.brakeCondition === 'critical' ? '#dc2626' : '#16a34a'};">${(bus.brakeCondition || 'Good').toUpperCase()}</b> (${bus.brakePadLifePercent ?? 88}% pad)
-            </span>
-            <span style="font-size: 9.5px; font-weight: 700; background: #f1f5f9; color: #0f172a; padding: 2px 6px; border-radius: 4px; border: 1px solid #cbd5e1;">
-              🛞 Tyres: <b style="color: ${bus.wheelCondition === 'fair' ? '#d97706' : '#16a34a'};">${(bus.wheelCondition || 'Good').toUpperCase()}</b> (${bus.tirePressurePsi ?? 110} PSI)
+            <span style="font-size: 10px; font-weight: 700; background: #f1f5f9; color: #0f172a; padding: 2px 6px; border-radius: 4px; border: 1px solid #cbd5e1;">
+              🛞 Tyre Pressure: ${bus.tirePressurePsi ?? 108} PSI
             </span>
           </div>
-          <div style="font-size: 11px; color: #475569; margin-bottom: 3px;">Speed: <b>${speedKmH} km/h</b> (Heading: ${loc.heading}°)</div>
-          <div style="font-size: 10px; font-family: monospace; color: #b45309; background: #fef3c7; padding: 2px 6px; border-radius: 4px; margin: 3px 0; border: 1px solid #fde68a;">
-            🛰️ GPS: <b>${loc.latitude.toFixed(5)}°N, ${loc.longitude.toFixed(5)}°E</b> (±${loc.accuracy || 5}m · ${loc.isSimulated ? 'Transponder' : 'Live Device GPS'})
+
+          <div style="font-size: 11px; color: #475569; margin-bottom: 2px;">Speed: <b>${speedKmH} km/h</b> (Heading: ${loc.heading}°)</div>
+          <div style="font-size: 10px; font-family: monospace; color: #b45309; background: #fef3c7; padding: 3px 6px; border-radius: 4px; margin: 4px 0; border: 1px solid #fde68a;">
+            🛰️ GPS: <b>${loc.latitude.toFixed(5)}°N, ${loc.longitude.toFixed(5)}°E</b> (±${loc.accuracy || 5}m)
           </div>
-          <div style="font-size: 11px; color: #475569; margin-bottom: 3px;">Occupancy: <b>${loc.occupiedSeats ?? (trip?.occupiedSeats || 0)} / ${bus.capacity} seats</b></div>
-          ${trip?.delayReason ? `<div style="font-size: 11px; color: #b45309; margin-top: 4px; padding: 4px; background: #fffbeb; border-radius: 4px;">⚠️ ${trip.delayReason}</div>` : ''}
-          ${isSignalLost ? `<div style="font-size: 11px; color: #dc2626; margin-top: 4px; font-weight: 600;">⚠️ GPS signal lost (>60s)</div>` : ''}
+          <div style="font-size: 11px; color: #475569;">Occupancy: <b>${loc.occupiedSeats ?? (trip?.occupiedSeats || 0)} / ${bus.capacity} seats</b></div>
         </div>
       `);
+
+      // 9. Auto-Focus on Emergency if configured and not already focused
+      if (hasEmergency && autoFocusEmergency && hasFocusedEmergencyRef.current !== bus.id) {
+        hasFocusedEmergencyRef.current = bus.id;
+        map.flyTo([loc.latitude, loc.longitude], 16, { animate: true, duration: 1.5 });
+        setTimeout(() => {
+          marker.openPopup();
+        }, 1600);
+      }
     });
-  }, [buses, locations, onBusSelect]);
+  }, [buses, locations, routes, onBusSelect, autoFocusEmergency]);
 
   // Auto-focus on selected stop
   useEffect(() => {
@@ -458,13 +718,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     if (!map) return;
 
     const coords: [number, number][] = [];
-
-    // Collect all bus coords
     Object.values(locations).forEach(l => {
       if (l.latitude && l.longitude) coords.push([l.latitude, l.longitude]);
     });
-
-    // Collect all stop coords
     stops.forEach(s => {
       if (s.latitude && s.longitude) coords.push([s.latitude, s.longitude]);
     });
@@ -474,15 +730,74 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     }
   };
 
+  const handleZoomIn = () => {
+    if (mapInstanceRef.current) mapInstanceRef.current.zoomIn();
+  };
+
+  const handleZoomOut = () => {
+    if (mapInstanceRef.current) mapInstanceRef.current.zoomOut();
+  };
+
+  const handleFocusEmergency = () => {
+    if (!activeEmergencyBus) return;
+    const loc = locations[activeEmergencyBus.bus.id];
+    if (loc && loc.latitude && loc.longitude && mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo([loc.latitude, loc.longitude], 16, { animate: true, duration: 1.2 });
+      const marker = busMarkersRef.current.get(activeEmergencyBus.bus.id);
+      if (marker) marker.openPopup();
+    }
+  };
+
   return (
-    <div className={`relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm ${className}`}>
+    <div className={`relative rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm ${className}`}>
       <div ref={mapContainerRef} className="w-full h-full" />
 
-      {/* Map Control Buttons */}
+      {/* Top Emergency HUD Banner if any vehicle has active SOS */}
+      {activeEmergencyBus && (
+        <div className="absolute top-3 left-3 right-16 z-20 bg-rose-600 text-white px-4 py-2.5 rounded-2xl shadow-xl flex items-center justify-between gap-3 animate-pulse">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <ShieldAlert className="w-5 h-5 shrink-0" />
+            <div className="min-w-0">
+              <span className="font-extrabold text-xs block truncate">
+                🚨 EMERGENCY: {activeEmergencyBus.bus.busNumber} ({activeEmergencyBus.bus.plateNumber})
+              </span>
+              <span className="text-[11px] opacity-90 truncate block">
+                {activeEmergencyBus.message}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={handleFocusEmergency}
+            className="px-3 py-1 bg-white text-rose-700 font-extrabold text-xs rounded-xl shadow-xs shrink-0 hover:bg-rose-50 transition-colors"
+          >
+            Locate SOS
+          </button>
+        </div>
+      )}
+
+      {/* Map Control Buttons: Zoom In, Zoom Out, Fit Fleet */}
       <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
         <button
+          onClick={handleZoomIn}
+          className="p-2.5 bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors backdrop-blur-sm"
+          title="Zoom In"
+          aria-label="Zoom In"
+        >
+          <ZoomIn className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={handleZoomOut}
+          className="p-2.5 bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors backdrop-blur-sm"
+          title="Zoom Out"
+          aria-label="Zoom Out"
+        >
+          <ZoomOut className="w-4 h-4" />
+        </button>
+
+        <button
           onClick={handleFitBounds}
-          className="p-2.5 bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors backdrop-blur-sm"
+          className="p-2.5 bg-white/95 dark:bg-slate-900/95 text-slate-700 dark:text-slate-200 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors backdrop-blur-sm"
           title="Fit Fleet to Screen"
           aria-label="Fit Fleet to Screen"
         >
@@ -492,29 +807,33 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
       {/* Interactive Picker Banner */}
       {interactivePickMode && (
-        <div className="absolute top-4 left-4 z-20 bg-amber-500 text-slate-950 px-3.5 py-1.5 rounded-xl font-medium text-xs shadow-lg flex items-center gap-2 animate-bounce">
+        <div className="absolute top-4 left-4 z-20 bg-amber-500 text-slate-950 px-3.5 py-1.5 rounded-xl font-bold text-xs shadow-lg flex items-center gap-2 animate-bounce">
           <Navigation className="w-3.5 h-3.5 fill-current" />
           Click anywhere on the map to place this stop pin
         </div>
       )}
 
-      {/* Map Legend */}
-      <div className="absolute bottom-4 left-4 z-20 hidden sm:flex items-center gap-4 px-3.5 py-2 bg-white/90 dark:bg-slate-900/90 rounded-xl shadow-md border border-slate-200 dark:border-slate-800 backdrop-blur-sm text-xs font-medium text-slate-600 dark:text-slate-300">
+      {/* Map Legend: Active, Delayed, Emergency, Under Repair */}
+      <div className="absolute bottom-4 left-4 z-20 hidden md:flex items-center gap-3 px-3.5 py-2 bg-white/95 dark:bg-slate-900/95 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 backdrop-blur-sm text-[11px] font-bold text-slate-700 dark:text-slate-300">
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-          <span>On-Time</span>
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-xs"></span>
+          <span>Active</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-xs"></span>
           <span>Delayed</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-          <span>Signal Lost</span>
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-600 shadow-xs animate-pulse"></span>
+          <span>Emergency</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-slate-800 dark:bg-slate-300"></span>
-          <span>Route Stop</span>
+          <span className="w-2.5 h-2.5 rounded-full bg-orange-500 shadow-xs"></span>
+          <span>Under Repair</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-xs"></span>
+          <span>Pickup Stop</span>
         </div>
       </div>
     </div>

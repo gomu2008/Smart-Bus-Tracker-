@@ -474,8 +474,10 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({ activeTab, onTab
                 buses={buses}
                 routes={routes}
                 stops={routeStops}
+                locations={busLocations}
                 selectedRouteId={selectedRouteId}
                 selectedStopId={selectedStopId}
+                selectedPickupStopId={selectedStopId}
                 onStopSelect={stop => setSelectedStopId(stop.id)}
                 className="w-full h-full min-h-[480px]"
               />

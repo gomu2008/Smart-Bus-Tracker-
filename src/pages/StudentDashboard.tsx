@@ -469,6 +469,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
                 locations={busLocations}
                 selectedRouteId={selectedRouteId}
                 selectedStopId={selectedStopId}
+                selectedPickupStopId={selectedStopId}
                 onStopSelect={stop => setSelectedStopId(stop.id)}
                 className="h-[520px] w-full"
               />

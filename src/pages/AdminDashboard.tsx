@@ -921,7 +921,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
             </div>
 
             <LeafletMap
-              buses={buses.filter(b => b.status === 'active')}
+              buses={buses}
               routes={routes}
               stops={stops}
               locations={busLocations}
@@ -1556,7 +1556,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
           </div>
 
           <LeafletMap
-            buses={buses.filter(b => b.status === 'active')}
+            buses={buses}
             routes={routes}
             stops={stops}
             locations={busLocations}

@@ -262,6 +262,16 @@ export const LiveProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
 
+      es.addEventListener('emergency', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse(e.data);
+          fetchTrackingData();
+          setLastEventTime(Date.now());
+        } catch (err) {
+          console.error(err);
+        }
+      });
+
       es.addEventListener('notification', (e: MessageEvent) => {
         try {
           const notif = JSON.parse(e.data) as NotificationItem;
