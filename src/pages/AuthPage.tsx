@@ -73,7 +73,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
     setMode('login');
 
     if (portal === 'admin') {
-      setEmail('');
+      setEmail('tec2026@gmail.com');
       setPassword('');
     } else if (portal === 'student') {
       setEmail('student.aarav@college.edu');
@@ -106,6 +106,23 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (selectedPortal === 'admin') {
+      // Admin password removed: direct passwordless entry
+      setLoading(true);
+      setErrorMessage(null);
+      const adminEmail = email.trim() || 'tec2026@gmail.com';
+      const res = await login(adminEmail, '');
+      setLoading(false);
+
+      if (res.success) {
+        showToast('Signed in to Admin Control HQ successfully!', 'success');
+        if (onSuccess) onSuccess();
+      } else {
+        setErrorMessage(res.error || 'Failed to access Admin HQ.');
+      }
+      return;
+    }
+
     if (!email || !password) {
       setErrorMessage('Please enter both email and password.');
       return;
@@ -336,8 +353,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                 <p className="text-xs leading-relaxed text-slate-700 dark:text-slate-300">
                   <b>Changes handle only admin:</b> Route management, Tirunelveli bus stop placement, fleet vehicle inspections, and driver approvals can strictly be performed only by authorized Administrators.
                 </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
-                  Please enter your official administrator credentials below to access the transit command console.
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-400 pt-1 font-semibold flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Admin password removed: instant password-free clearance enabled.</span>
                 </p>
               </div>
             ) : selectedPortal === 'student' ? (
@@ -435,12 +453,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                    {selectedPortal === 'admin' ? 'Admin Password' : 'Password'}
-                  </label>
-                  {selectedPortal !== 'admin' && (
+              {selectedPortal !== 'admin' ? (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Password
+                    </label>
                     <button
                       type="button"
                       onClick={() => {
@@ -452,28 +470,38 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                     >
                       Forgot password?
                     </button>
-                  )}
+                  </div>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-9 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      title={showPassword ? 'Hide password' : 'Open / View password'}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-9 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    title={showPassword ? 'Hide password' : 'Open / View password'}
-                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-800 dark:text-emerald-200 flex items-center gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div>
+                    <span className="font-bold block">No Password Required</span>
+                    <span className="text-[11px] text-emerald-700 dark:text-emerald-300">
+                      Administrative credentials are pre-authorized for instant master access.
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <button
                 type="submit"
@@ -486,7 +514,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                     : 'bg-amber-500 text-slate-950 hover:bg-amber-400 shadow-amber-500/25'
                 }`}
               >
-                {loading ? 'Authenticating...' : selectedPortal === 'admin' ? 'Sign In to Admin Control HQ' : 'Sign In to Dashboard'}
+                {loading
+                  ? 'Authenticating...'
+                  : selectedPortal === 'admin'
+                  ? 'Enter Admin Control HQ (Instant Access)'
+                  : 'Sign In to Dashboard'}
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
@@ -811,7 +843,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                 type="button"
                 onClick={() => {
                   setSelectedPortal('admin');
-                  handleQuickLogin('tec2026@gmail.com', 'gomu2026');
+                  handleQuickLogin('tec2026@gmail.com', '');
                 }}
                 className="p-2.5 rounded-xl border border-amber-300 dark:border-amber-800/60 bg-amber-50/70 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-950/60 transition-colors group"
               >
@@ -825,8 +857,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                 <div className="text-[11px] text-slate-700 dark:text-slate-300 font-mono mt-1 truncate">
                   tec2026@gmail.com
                 </div>
-                <div className="text-[10px] text-slate-500">
-                  Password: gomu2026 / Admin@123
+                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                  No password required (Instant access)
                 </div>
               </button>
             </div>

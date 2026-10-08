@@ -7,7 +7,6 @@ import { Logo } from '../components/Logo';
 import { LeafletMap } from '../components/LeafletMap';
 import { CsvDataReportDebugger } from '../components/CsvDataReportDebugger';
 import { VehicleGpsTracker } from '../components/VehicleGpsTracker';
-import { PasswordSettingSection } from '../components/PasswordSettingSection';
 import { Bus, Route, Stop, User, FeedbackItem, Announcement } from '../types';
 import {
   Gauge,
@@ -1736,12 +1735,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
               <p className="font-bold text-slate-900 dark:text-white">{user?.name || 'Authorized Institutional Administrator'}</p>
             </div>
             <div>
-              <span className="font-bold text-slate-500 block mb-1">Administrator Account</span>
+              <span className="font-bold text-slate-500 block mb-1">Administrator Clearance</span>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-slate-700 dark:text-slate-200 font-bold bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                  Protected Administrator Account
+                <span className="font-mono text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-xl border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Direct Admin Access (No Password Required)</span>
                 </span>
-                <span className="text-[10px] text-slate-400 font-mono">●●●●●●●●</span>
               </div>
             </div>
             <div>
@@ -1749,13 +1748,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
               <p className="font-mono text-amber-500 font-bold">{user?.collegeId || 'TEC-ADMIN-HQ'}</p>
             </div>
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500">
-              🔒 Confidentiality Notice: Institutional email and authentication passwords are encrypted and confidential.
+              Institutional Master Clearance: Route network management, fleet controls, and safety oversight.
             </div>
-          </div>
-
-          {/* Admin Password & Security Settings (Open / Hide Password Setting) */}
-          <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
-            <PasswordSettingSection defaultOpen={false} />
           </div>
 
           {/* Transit Branding, Logo & Template Architecture */}

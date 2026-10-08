@@ -5,7 +5,6 @@ import { useToast } from '../context/ToastContext';
 import { LeafletMap } from '../components/LeafletMap';
 import { RouteStopPicker } from '../components/RouteStopPicker';
 import { VehicleGpsTracker } from '../components/VehicleGpsTracker';
-import { PasswordSettingSection } from '../components/PasswordSettingSection';
 import { Route, Stop, Bus, Trip, FeedbackItem } from '../types';
 import {
   MapPin,
@@ -65,12 +64,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
   const [profileName, setProfileName] = useState(user?.name || '');
   const [profilePhone, setProfilePhone] = useState(user?.phone || '');
   const [profileSaving, setProfileSaving] = useState(false);
-
-  // Change password state
-  const [currentPass, setCurrentPass] = useState('');
-  const [newPass, setNewPass] = useState('');
-  const [confirmPass, setConfirmPass] = useState('');
-  const [passSaving, setPassSaving] = useState(false);
 
   // Fetch routes and buses
   const loadData = async () => {
@@ -259,41 +252,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
     } catch {
       setProfileSaving(false);
       showToast('Network error updating profile', 'error');
-    }
-  };
-
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPass !== confirmPass) {
-      showToast('New passwords do not match.', 'error');
-      return;
-    }
-    if (newPass.length < 6) {
-      showToast('New password must be at least 6 characters.', 'error');
-      return;
-    }
-
-    setPassSaving(true);
-    try {
-      const res = await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ currentPassword: currentPass, newPassword: newPass }),
-      });
-      const data = await res.json();
-      setPassSaving(false);
-
-      if (res.ok) {
-        showToast('Password changed successfully!', 'success');
-        setCurrentPass('');
-        setNewPass('');
-        setConfirmPass('');
-      } else {
-        showToast(data.error || 'Failed to change password.', 'error');
-      }
-    } catch {
-      setPassSaving(false);
-      showToast('Network error changing password', 'error');
     }
   };
 
@@ -1012,9 +970,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
               </button>
             </form>
           </div>
-
-          {/* Password & Account Security Settings (with open/hide setting & show/hide password) */}
-          <PasswordSettingSection defaultOpen={true} />
         </div>
       )}
 

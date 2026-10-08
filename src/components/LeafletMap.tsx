@@ -1,8 +1,21 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { Bus, Route, Stop, BusLocation } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { Navigation, Maximize2, ShieldAlert, AlertTriangle, Wrench, ZoomIn, ZoomOut, Compass } from 'lucide-react';
+
+// Configure Leaflet default icons to avoid 404 errors on marker-icon.png
+try {
+  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  L.Icon.Default.mergeOptions({
+    iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  });
+} catch {
+  // ignore in non-browser environments
+}
 
 interface LeafletMapProps {
   buses?: Bus[];
@@ -112,27 +125,50 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
   // 1. Initialize Map with OpenStreetMap (Leaflet.js)
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    const container = mapContainerRef.current;
+    if (!container) return;
     if (mapInstanceRef.current) return;
 
-    // Center around Tirunelveli, Tamil Nadu campus hub
-    const map = L.map(mapContainerRef.current, {
-      center: [8.7139, 77.7567],
-      zoom: 13,
-      zoomControl: false,
-    });
+    // Guard against "Map container is already initialized." by resetting leaflet DOM marker if needed
+    if ((container as any)._leaflet_id) {
+      delete (container as any)._leaflet_id;
+    }
 
-    mapInstanceRef.current = map;
+    let map: L.Map;
+    try {
+      // Center around Tirunelveli, Tamil Nadu campus hub
+      map = L.map(container, {
+        center: [8.7139, 77.7567],
+        zoom: 13,
+        zoomControl: false,
+      });
+      mapInstanceRef.current = map;
+    } catch (err) {
+      console.warn('Map initialization caught error:', err);
+      return;
+    }
 
     // Fix tile rendering on mount
     const resizeTimer = setTimeout(() => {
-      map.invalidateSize();
+      try {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      } catch {
+        // ignore
+      }
     }, 250);
 
     return () => {
       clearTimeout(resizeTimer);
-      map.remove();
-      mapInstanceRef.current = null;
+      if (mapInstanceRef.current) {
+        try {
+          mapInstanceRef.current.remove();
+        } catch (e) {
+          console.warn('Map cleanup error:', e);
+        }
+        mapInstanceRef.current = null;
+      }
     };
   }, []);
 
@@ -157,7 +193,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     if (!map) return;
 
     if (tileLayerRef.current) {
-      map.removeLayer(tileLayerRef.current);
+      try {
+        map.removeLayer(tileLayerRef.current);
+      } catch {
+        // ignore
+      }
     }
 
     const tileUrl =
@@ -170,10 +210,17 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         ? '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
-    tileLayerRef.current = L.tileLayer(tileUrl, {
-      attribution,
-      maxZoom: 19,
-    }).addTo(map);
+    try {
+      const tileLayer = L.tileLayer(tileUrl, {
+        attribution,
+        maxZoom: 19,
+        subdomains: theme === 'dark' ? 'abcd' : 'abc',
+      });
+      tileLayer.addTo(map);
+      tileLayerRef.current = tileLayer;
+    } catch (err) {
+      console.warn('Map tileLayer error:', err);
+    }
   }, [theme]);
 
   // 4. Map click handler for interactive stop pin placing
@@ -433,27 +480,29 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
 
       // Draw deviation indicator line if off-course
-      if (isDeviated && assignedRoute && assignedRoute.stops && assignedRoute.stops.length > 0) {
-        // Find nearest stop on assigned route
-        let nearestStop = assignedRoute.stops[0];
-        let nearestDist = Infinity;
-        assignedRoute.stops.forEach(s => {
-          if (s.latitude && s.longitude) {
+      if (isDeviated && assignedRoute && Array.isArray(assignedRoute.stops)) {
+        const validStops = assignedRoute.stops.filter(
+          s => s && typeof s.latitude === 'number' && typeof s.longitude === 'number' && !isNaN(s.latitude) && !isNaN(s.longitude)
+        );
+        if (validStops.length > 0) {
+          let nearestStop = validStops[0];
+          let nearestDist = Infinity;
+          validStops.forEach(s => {
             const d = Math.hypot(s.latitude - loc.latitude, s.longitude - loc.longitude);
             if (d < nearestDist) {
               nearestDist = d;
               nearestStop = s;
             }
-          }
-        });
+          });
 
-        if (nearestStop.latitude && nearestStop.longitude) {
-          const devLine = L.polyline(
-            [[loc.latitude, loc.longitude], [nearestStop.latitude, nearestStop.longitude]],
-            { color: '#ef4444', weight: 2.5, dashArray: '5, 5', opacity: 0.8 }
-          ).addTo(map);
-          devLine.bindTooltip(`⚠️ Route Deviation: ~${(deviationKm * 1000).toFixed(0)}m off scheduled path`, { sticky: true });
-          deviationLinesRef.current.set(bus.id, devLine);
+          if (nearestStop && typeof nearestStop.latitude === 'number' && typeof nearestStop.longitude === 'number') {
+            const devLine = L.polyline(
+              [[loc.latitude, loc.longitude], [nearestStop.latitude, nearestStop.longitude]],
+              { color: '#ef4444', weight: 2.5, dashArray: '5, 5', opacity: 0.8 }
+            ).addTo(map);
+            devLine.bindTooltip(`⚠️ Route Deviation: ~${(deviationKm * 1000).toFixed(0)}m off scheduled path`, { sticky: true });
+            deviationLinesRef.current.set(bus.id, devLine);
+          }
         }
       }
 
@@ -636,7 +685,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         ? `⚠️ DELAYED (+${delayMinutes}m)`
         : '🟢 ACTIVE & ON-TIME';
 
-      marker.bindPopup(`
+      const popupHtml = `
         <div style="padding: 12px; min-width: 230px; font-family: inherit;">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
             <span style="font-weight: 800; font-size: 14px; color: #0f172a;">${bus.busNumber}</span>
@@ -675,15 +724,29 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           </div>
           <div style="font-size: 11px; color: #475569;">Occupancy: <b>${loc.occupiedSeats ?? (trip?.occupiedSeats || 0)} / ${bus.capacity} seats</b></div>
         </div>
-      `);
+      `;
+
+      if (marker.getPopup()) {
+        marker.setPopupContent(popupHtml);
+      } else {
+        marker.bindPopup(popupHtml);
+      }
 
       // 9. Auto-Focus on Emergency if configured and not already focused
       if (hasEmergency && autoFocusEmergency && hasFocusedEmergencyRef.current !== bus.id) {
         hasFocusedEmergencyRef.current = bus.id;
-        map.flyTo([loc.latitude, loc.longitude], 16, { animate: true, duration: 1.5 });
-        setTimeout(() => {
-          marker.openPopup();
-        }, 1600);
+        try {
+          map.flyTo([loc.latitude, loc.longitude], 16, { animate: true, duration: 1.5 });
+          setTimeout(() => {
+            try {
+              if (mapInstanceRef.current && marker) marker.openPopup();
+            } catch {
+              // ignore
+            }
+          }, 1600);
+        } catch (e) {
+          console.warn('Map flyTo emergency error:', e);
+        }
       }
     });
   }, [buses, locations, routes, onBusSelect, autoFocusEmergency]);
@@ -693,8 +756,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const map = mapInstanceRef.current;
     if (!map || !selectedStopId) return;
     const stop = stops.find(s => s.id === selectedStopId);
-    if (stop && stop.latitude && stop.longitude) {
-      map.setView([stop.latitude, stop.longitude], 15, { animate: true });
+    if (stop && typeof stop.latitude === 'number' && typeof stop.longitude === 'number' && !isNaN(stop.latitude) && !isNaN(stop.longitude)) {
+      try {
+        map.setView([stop.latitude, stop.longitude], 15, { animate: true });
+      } catch (err) {
+        console.warn('Map setView stop error:', err);
+      }
     }
   }, [selectedStopId, stops]);
 
@@ -703,11 +770,25 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const map = mapInstanceRef.current;
     if (!map || !selectedRouteId) return;
     const route = routes.find(r => r.id === selectedRouteId);
-    if (route && route.stops && route.stops.length > 0) {
-      const validStops = route.stops.filter(s => s.latitude && s.longitude);
-      if (validStops.length > 0) {
-        const bounds = L.latLngBounds(validStops.map(s => [s.latitude, s.longitude]));
-        map.fitBounds(bounds, { padding: [45, 45], maxZoom: 15 });
+    if (route && Array.isArray(route.stops) && route.stops.length > 0) {
+      const validStops = route.stops.filter(
+        s => s && typeof s.latitude === 'number' && typeof s.longitude === 'number' && !isNaN(s.latitude) && !isNaN(s.longitude)
+      );
+      if (validStops.length === 1) {
+        try {
+          map.setView([validStops[0].latitude, validStops[0].longitude], 15, { animate: true });
+        } catch (err) {
+          console.warn('Map setView route stop error:', err);
+        }
+      } else if (validStops.length > 1) {
+        try {
+          const bounds = L.latLngBounds(validStops.map(s => [s.latitude, s.longitude]));
+          if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [45, 45], maxZoom: 15 });
+          }
+        } catch (err) {
+          console.warn('Map fitBounds route error:', err);
+        }
       }
     }
   }, [selectedRouteId, routes]);
@@ -717,34 +798,61 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    const coords: [number, number][] = [];
-    Object.values(locations).forEach(l => {
-      if (l.latitude && l.longitude) coords.push([l.latitude, l.longitude]);
-    });
-    stops.forEach(s => {
-      if (s.latitude && s.longitude) coords.push([s.latitude, s.longitude]);
-    });
+    try {
+      const coords: [number, number][] = [];
+      Object.values(locations).forEach(l => {
+        if (l && typeof l.latitude === 'number' && typeof l.longitude === 'number' && !isNaN(l.latitude) && !isNaN(l.longitude)) {
+          coords.push([l.latitude, l.longitude]);
+        }
+      });
+      stops.forEach(s => {
+        if (s && typeof s.latitude === 'number' && typeof s.longitude === 'number' && !isNaN(s.latitude) && !isNaN(s.longitude)) {
+          coords.push([s.latitude, s.longitude]);
+        }
+      });
 
-    if (coords.length > 0) {
-      map.fitBounds(L.latLngBounds(coords), { padding: [50, 50], maxZoom: 15 });
+      if (coords.length === 1) {
+        map.setView(coords[0], 14, { animate: true });
+      } else if (coords.length > 1) {
+        const bounds = L.latLngBounds(coords);
+        if (bounds.isValid()) {
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+        }
+      } else {
+        map.setView([8.7139, 77.7567], 13, { animate: true });
+      }
+    } catch (err) {
+      console.warn('Map handleFitBounds error:', err);
     }
   };
 
   const handleZoomIn = () => {
-    if (mapInstanceRef.current) mapInstanceRef.current.zoomIn();
+    try {
+      if (mapInstanceRef.current) mapInstanceRef.current.zoomIn();
+    } catch {
+      // ignore
+    }
   };
 
   const handleZoomOut = () => {
-    if (mapInstanceRef.current) mapInstanceRef.current.zoomOut();
+    try {
+      if (mapInstanceRef.current) mapInstanceRef.current.zoomOut();
+    } catch {
+      // ignore
+    }
   };
 
   const handleFocusEmergency = () => {
     if (!activeEmergencyBus) return;
     const loc = locations[activeEmergencyBus.bus.id];
-    if (loc && loc.latitude && loc.longitude && mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([loc.latitude, loc.longitude], 16, { animate: true, duration: 1.2 });
-      const marker = busMarkersRef.current.get(activeEmergencyBus.bus.id);
-      if (marker) marker.openPopup();
+    if (loc && typeof loc.latitude === 'number' && typeof loc.longitude === 'number' && mapInstanceRef.current) {
+      try {
+        mapInstanceRef.current.flyTo([loc.latitude, loc.longitude], 16, { animate: true, duration: 1.2 });
+        const marker = busMarkersRef.current.get(activeEmergencyBus.bus.id);
+        if (marker) marker.openPopup();
+      } catch (err) {
+        console.warn('Map handleFocusEmergency error:', err);
+      }
     }
   };
 

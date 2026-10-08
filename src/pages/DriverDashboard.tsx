@@ -29,7 +29,6 @@ import {
   User,
   Lock,
 } from 'lucide-react';
-import { PasswordSettingSection } from '../components/PasswordSettingSection';
 
 interface DriverDashboardProps {
   activeTab: string;
@@ -852,9 +851,6 @@ export const DriverDashboard: React.FC<DriverDashboardProps> = ({ activeTab, onT
               </div>
             </div>
           </div>
-
-          {/* Password & Security Settings (Open / Hide Password Setting) */}
-          <PasswordSettingSection defaultOpen={false} />
         </div>
       )}
 
