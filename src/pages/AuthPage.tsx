@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useLive } from '../context/LiveContext';
@@ -73,8 +73,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
     setMode('login');
 
     if (portal === 'admin') {
-      setEmail('tec2026@gmail.com');
-      setPassword('');
+      setEmail('gomu2468@gmail.com');
+      setPassword('gomu2008@');
     } else if (portal === 'student') {
       setEmail('student.aarav@college.edu');
       setPassword('Student@123');
@@ -86,6 +86,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
       setPassword('Driver@123');
     }
   };
+
+  // Initialize portal fields on mount
+  useEffect(() => {
+    handleSwitchPortal(selectedPortal);
+  }, []);
 
   // 1-Click Demo Accounts
   const handleQuickLogin = async (demoEmail: string, demoPass: string) => {
@@ -106,23 +111,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedPortal === 'admin') {
-      // Admin password removed: direct passwordless entry
-      setLoading(true);
-      setErrorMessage(null);
-      const adminEmail = email.trim() || 'tec2026@gmail.com';
-      const res = await login(adminEmail, '');
-      setLoading(false);
-
-      if (res.success) {
-        showToast('Signed in to Admin Control HQ successfully!', 'success');
-        if (onSuccess) onSuccess();
-      } else {
-        setErrorMessage(res.error || 'Failed to access Admin HQ.');
-      }
-      return;
-    }
-
     if (!email || !password) {
       setErrorMessage('Please enter both email and password.');
       return;
@@ -355,7 +343,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                 </p>
                 <p className="text-[11px] text-amber-700 dark:text-amber-400 pt-1 font-semibold flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Secure administrative authentication (password: gomu2026) required for master access.</span>
+                  <span>Secure administrative authentication (password: gomu2008@) required for master access.</span>
                 </p>
               </div>
             ) : selectedPortal === 'student' ? (
@@ -447,7 +435,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                     required
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder={selectedPortal === 'admin' ? 'official.admin@campus.edu' : 'student.aarav@college.edu'}
+                    placeholder={selectedPortal === 'admin' ? 'gomu2468@gmail.com' : 'student.aarav@college.edu'}
                     className="w-full pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
@@ -477,7 +465,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                     required
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    placeholder={selectedPortal === 'admin' ? 'Enter admin password (gomu2026)' : '••••••••'}
+                    placeholder={selectedPortal === 'admin' ? 'Enter admin password (gomu2008@)' : '••••••••'}
                     className="w-full pl-9 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
                   />
                   <button

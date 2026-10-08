@@ -30,11 +30,11 @@ class Database {
         // Verify key tables exist and check if data needs migration from old Bengaluru stops
         if (parsed.users && parsed.buses && parsed.stops && parsed.routes) {
           const hasOldBengaluru = parsed.stops.some((s: any) => s.latitude > 12 && s.latitude < 14);
-          const hasAdmin = parsed.users.some((u: any) => u.email.toLowerCase() === 'tec2026@gmail.com');
+          const hasAdmin = parsed.users.some((u: any) => u.role === 'admin' || u.email.toLowerCase() === 'gomu2468@gmail.com' || u.email.toLowerCase() === 'tec2026@gmail.com');
           if (!hasOldBengaluru && hasAdmin) {
             return parsed;
           }
-          console.log('Migrating database to official Tirunelveli, Tamil Nadu network & tec2026@gmail.com admin...');
+          console.log('Migrating database to official Tirunelveli, Tamil Nadu network...');
         }
       }
     } catch (err) {

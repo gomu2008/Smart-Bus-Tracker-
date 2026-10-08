@@ -3,7 +3,7 @@ import { DatabaseSchema, User, Bus, Stop, Route, RouteStop, Trip, Announcement, 
 
 export function getSeedData(): DatabaseSchema {
   const salt = bcrypt.genSaltSync(10);
-  const adminPass = bcrypt.hashSync('gomu2026', salt);
+  const adminPass = bcrypt.hashSync('gomu2008@', salt);
   const driverPass = bcrypt.hashSync('Driver@123', salt);
   const studentPass = bcrypt.hashSync('Student@123', salt);
   const staffPass = bcrypt.hashSync('Staff@123', salt);
@@ -16,7 +16,7 @@ export function getSeedData(): DatabaseSchema {
     {
       id: 'usr_admin_1',
       name: 'TEC Transport Administrator',
-      email: 'tec2026@gmail.com',
+      email: 'gomu2468@gmail.com',
       passwordHash: adminPass,
       role: 'admin',
       collegeId: 'ADM-TEC-2026',
