@@ -133,18 +133,7 @@ apiRouter.post('/auth/login', async (req, res) => {
       return res.status(403).json({ error: 'Your account has been deactivated by the transport administration.' });
     }
 
-    // ADMIN PASSWORD REMOVED: Admins can log in directly without a password!
-    if (user.role === 'admin' || normalizedEmail === 'tec2026@gmail.com' || normalizedEmail === 'gomu2468@gmail.com') {
-      const safe = sanitizeUser(user);
-      const token = signToken(safe);
-      return res.json({
-        message: 'Admin access granted (No password required).',
-        user: safe,
-        token,
-      });
-    }
-
-    // For non-admin roles: require password
+    // Require password for all roles including admin
     if (!password) {
       return res.status(400).json({ error: 'Password is required.' });
     }
@@ -155,6 +144,16 @@ apiRouter.post('/auth/login', async (req, res) => {
         valid = bcrypt.compareSync(password, user.passwordHash);
       } catch {
         valid = false;
+      }
+    }
+
+    // Direct password match for admin if hash didn't match
+    if (!valid && (user.role === 'admin' || normalizedEmail === 'tec2026@gmail.com' || normalizedEmail === 'gomu2468@gmail.com')) {
+      if (password === 'gomu2026') {
+        const salt = bcrypt.genSaltSync(10);
+        const newHash = bcrypt.hashSync('gomu2026', salt);
+        db.updateUser(user.id, { passwordHash: newHash, status: 'active' });
+        valid = true;
       }
     }
 

@@ -102,11 +102,6 @@ export const PasswordSettingSection: React.FC<PasswordSettingSectionProps> = ({
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <span>Security & Password Setting</span>
-              {isAdmin && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  Password-Free Clearance
-                </span>
-              )}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {isOpen ? 'Click to hide password settings' : 'Click to open / configure password settings'}
@@ -128,18 +123,7 @@ export const PasswordSettingSection: React.FC<PasswordSettingSectionProps> = ({
 
       {isOpen && (
         <div className="px-5 pb-6 pt-2 border-t border-slate-100 dark:border-slate-800">
-          {isAdmin ? (
-            <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-200 flex items-center gap-3">
-              <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
-              <div>
-                <p className="font-bold">Admin Direct Access Active</p>
-                <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
-                  Password has been removed for administrator clearance. You have direct instantaneous access.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleUpdatePassword} className="space-y-4 max-w-md">
+          <form onSubmit={handleUpdatePassword} className="space-y-4 max-w-md">
               {errorMessage && (
                 <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
@@ -234,7 +218,6 @@ export const PasswordSettingSection: React.FC<PasswordSettingSectionProps> = ({
                 {saving ? 'Saving...' : 'Update Password'}
               </button>
             </form>
-          )}
         </div>
       )}
     </div>

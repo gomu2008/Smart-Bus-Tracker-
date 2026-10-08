@@ -1739,7 +1739,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
               <div className="flex items-center gap-2">
                 <span className="font-mono text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-xl border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Direct Admin Access (No Password Required)</span>
+                  <span>Master Administrator Clearance (Encrypted Access)</span>
                 </span>
               </div>
             </div>
