@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { LeafletMap } from '../components/LeafletMap';
 import { RouteStopPicker } from '../components/RouteStopPicker';
 import { VehicleGpsTracker } from '../components/VehicleGpsTracker';
+import { PasswordSettingSection } from '../components/PasswordSettingSection';
 import { Route, Stop, Bus, Trip, FeedbackItem } from '../types';
 import {
   MapPin,
@@ -1012,63 +1013,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
             </form>
           </div>
 
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
-              Change Password
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-              Ensure your account uses a secure password of at least 6 characters
-            </p>
-
-            <form onSubmit={handlePasswordChange} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Current Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={currentPass}
-                  onChange={e => setCurrentPass(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={newPass}
-                  onChange={e => setNewPass(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={confirmPass}
-                  onChange={e => setConfirmPass(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={passSaving}
-                className="py-2.5 px-5 rounded-xl bg-slate-900 dark:bg-slate-800 text-white font-bold text-xs hover:bg-slate-800 dark:hover:bg-slate-700 transition-all border border-slate-700"
-              >
-                {passSaving ? 'Updating...' : 'Update Password'}
-              </button>
-            </form>
-          </div>
+          {/* Password & Account Security Settings (with open/hide setting & show/hide password) */}
+          <PasswordSettingSection defaultOpen={true} />
         </div>
       )}
 

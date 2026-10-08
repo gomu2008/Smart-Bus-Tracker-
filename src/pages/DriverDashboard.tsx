@@ -26,7 +26,10 @@ import {
   Bus as BusIcon,
   Eye,
   XCircle,
+  User,
+  Lock,
 } from 'lucide-react';
+import { PasswordSettingSection } from '../components/PasswordSettingSection';
 
 interface DriverDashboardProps {
   activeTab: string;
@@ -795,6 +798,63 @@ export const DriverDashboard: React.FC<DriverDashboardProps> = ({ activeTab, onT
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* VIEW: DRIVER PROFILE & VEHICLE / PASSWORD SETTINGS */}
+      {activeTab === 'profile' && (
+        <div className="space-y-6">
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
+                  <User className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                    Driver Profile & Vehicle Assignment
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Licensed Transit Operator Credentials
+                  </p>
+                </div>
+              </div>
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Verified Pilot</span>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                <span className="text-slate-400 font-bold block mb-1">Driver Name</span>
+                <p className="font-bold text-slate-900 dark:text-white text-sm">{user?.name || 'Assigned Driver'}</p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                <span className="text-slate-400 font-bold block mb-1">College ID</span>
+                <p className="font-mono text-amber-500 font-bold text-sm">{user?.collegeId || 'DRV-TEC-01'}</p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                <span className="text-slate-400 font-bold block mb-1">Phone Contact</span>
+                <p className="font-mono text-slate-700 dark:text-slate-300 font-bold text-sm">{user?.phone || '+91 94431 01001'}</p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                <span className="text-slate-400 font-bold block mb-1">Assigned Vehicle</span>
+                <p className="font-bold text-slate-900 dark:text-white text-sm">{assignedBus ? `${assignedBus.busNumber} (${assignedBus.plateNumber})` : 'Bus 01 (TN-72-AX-4091)'}</p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                <span className="text-slate-400 font-bold block mb-1">Primary Route</span>
+                <p className="font-bold text-slate-900 dark:text-white text-sm">{assignedRoute ? assignedRoute.name : 'Vannarpettai - TEC Campus'}</p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+                <span className="text-slate-400 font-bold block mb-1">Speed Limit / Telemetry</span>
+                <p className="font-bold text-emerald-600 dark:text-emerald-400 text-sm">Active GPS Radar & TPMS</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Password & Security Settings (Open / Hide Password Setting) */}
+          <PasswordSettingSection defaultOpen={false} />
         </div>
       )}
 

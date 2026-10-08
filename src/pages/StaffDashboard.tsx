@@ -6,6 +6,7 @@ import { Route, Stop, Bus, Trip } from '../types';
 import { LeafletMap } from '../components/LeafletMap';
 import { RouteStopPicker } from '../components/RouteStopPicker';
 import { VehicleGpsTracker } from '../components/VehicleGpsTracker';
+import { PasswordSettingSection } from '../components/PasswordSettingSection';
 import {
   Bus as BusIcon,
   MapPin,
@@ -838,6 +839,9 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({ activeTab, onTab
               {savingProfile ? 'Saving Changes...' : 'Save Profile Changes'}
             </button>
           </form>
+
+          {/* Password & Security Settings (Open / Hide Password Setting) */}
+          <PasswordSettingSection defaultOpen={false} />
         </div>
       )}
 

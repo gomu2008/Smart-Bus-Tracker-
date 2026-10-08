@@ -7,6 +7,7 @@ import { Logo } from '../components/Logo';
 import { LeafletMap } from '../components/LeafletMap';
 import { CsvDataReportDebugger } from '../components/CsvDataReportDebugger';
 import { VehicleGpsTracker } from '../components/VehicleGpsTracker';
+import { PasswordSettingSection } from '../components/PasswordSettingSection';
 import { Bus, Route, Stop, User, FeedbackItem, Announcement } from '../types';
 import {
   Gauge,
@@ -1750,6 +1751,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500">
               🔒 Confidentiality Notice: Institutional email and authentication passwords are encrypted and confidential.
             </div>
+          </div>
+
+          {/* Admin Password & Security Settings (Open / Hide Password Setting) */}
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
+            <PasswordSettingSection defaultOpen={false} />
           </div>
 
           {/* Transit Branding, Logo & Template Architecture */}
