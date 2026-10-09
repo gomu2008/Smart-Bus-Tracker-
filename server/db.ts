@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { DatabaseSchema, User, Bus, Stop, Route, RouteStop, Trip, BusLocation, Announcement, NotificationItem, FeedbackItem, FavouriteStop, PasswordReset } from './types.js';
+import { DatabaseSchema, User, Bus, Stop, Route, RouteStop, Trip, BusLocation, Announcement, NotificationItem, FeedbackItem, FavouriteStop, PasswordReset, GpsDevice, GpsPacketLog } from './types.js';
 import { getSeedData } from './seed.js';
 
 const DATA_DIR = path.resolve(process.cwd(), 'data');
@@ -32,6 +32,8 @@ class Database {
           const hasOldBengaluru = parsed.stops.some((s: any) => s.latitude > 12 && s.latitude < 14);
           const hasAdmin = parsed.users.some((u: any) => u.role === 'admin' || u.email.toLowerCase() === 'gomu2468@gmail.com' || u.email.toLowerCase() === 'tec2026@gmail.com');
           if (!hasOldBengaluru && hasAdmin) {
+            parsed.gps_devices = parsed.gps_devices || [];
+            parsed.gps_packet_logs = parsed.gps_packet_logs || [];
             return parsed;
           }
           console.log('Migrating database to official Tirunelveli, Tamil Nadu network...');
@@ -487,6 +489,68 @@ class Database {
       pr.used = true;
       this.scheduleSave();
     }
+  }
+
+  // --- Real GPS Tracker Hardware Devices & Packet Telemetry ---
+  public getGpsDevices(): GpsDevice[] {
+    if (!this.data.gps_devices) this.data.gps_devices = [];
+    return this.data.gps_devices;
+  }
+
+  public getGpsDeviceById(idOrImei: string): GpsDevice | undefined {
+    if (!this.data.gps_devices) this.data.gps_devices = [];
+    return this.data.gps_devices.find(
+      d => d.id === idOrImei || d.imei === idOrImei
+    );
+  }
+
+  public getGpsDeviceByBusId(busId: string): GpsDevice | undefined {
+    if (!this.data.gps_devices) this.data.gps_devices = [];
+    return this.data.gps_devices.find(d => d.busId === busId);
+  }
+
+  public upsertGpsDevice(device: GpsDevice): GpsDevice {
+    if (!this.data.gps_devices) this.data.gps_devices = [];
+    const index = this.data.gps_devices.findIndex(
+      d => d.id === device.id || (device.imei && d.imei === device.imei)
+    );
+    if (index >= 0) {
+      this.data.gps_devices[index] = { ...this.data.gps_devices[index], ...device, updatedAt: new Date().toISOString() };
+    } else {
+      this.data.gps_devices.push(device);
+    }
+    this.scheduleSave();
+    return index >= 0 ? this.data.gps_devices[index] : device;
+  }
+
+  public deleteGpsDevice(id: string): boolean {
+    if (!this.data.gps_devices) this.data.gps_devices = [];
+    const initialLen = this.data.gps_devices.length;
+    this.data.gps_devices = this.data.gps_devices.filter(d => d.id !== id && d.imei !== id);
+    if (this.data.gps_devices.length !== initialLen) {
+      this.scheduleSave();
+      return true;
+    }
+    return false;
+  }
+
+  public addGpsPacketLog(log: GpsPacketLog): GpsPacketLog {
+    if (!this.data.gps_packet_logs) this.data.gps_packet_logs = [];
+    this.data.gps_packet_logs.unshift(log);
+    // Keep max 1000 logs in memory/disk
+    if (this.data.gps_packet_logs.length > 1000) {
+      this.data.gps_packet_logs = this.data.gps_packet_logs.slice(0, 1000);
+    }
+    this.scheduleSave();
+    return log;
+  }
+
+  public getGpsPacketLogs(busId?: string, limit = 50): GpsPacketLog[] {
+    if (!this.data.gps_packet_logs) this.data.gps_packet_logs = [];
+    const filtered = busId
+      ? this.data.gps_packet_logs.filter(p => p.busId === busId)
+      : this.data.gps_packet_logs;
+    return filtered.slice(0, limit);
   }
 
   // --- Settings & Demo Mode ---

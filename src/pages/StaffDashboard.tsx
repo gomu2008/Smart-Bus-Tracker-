@@ -5,7 +5,6 @@ import { useToast } from '../context/ToastContext';
 import { Route, Stop, Bus, Trip } from '../types';
 import { LeafletMap } from '../components/LeafletMap';
 import { RouteStopPicker } from '../components/RouteStopPicker';
-import { VehicleGpsTracker } from '../components/VehicleGpsTracker';
 import {
   Bus as BusIcon,
   MapPin,

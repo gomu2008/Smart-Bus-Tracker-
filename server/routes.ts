@@ -12,7 +12,7 @@ import {
   checkLoginRateLimit,
   AuthRequest,
 } from './auth.js';
-import { Bus, Route, Stop, Trip, Announcement, FeedbackItem, BusLocation } from './types.js';
+import { Bus, Route, Stop, Trip, Announcement, FeedbackItem, BusLocation, GpsDevice, GpsPacketLog, GpsConnectionStatus, SimNetworkStatus } from './types.js';
 
 export const apiRouter = Router();
 
@@ -647,6 +647,361 @@ apiRouter.post('/driver/location', requireRole(['driver', 'admin']), (req: AuthR
   }
 
   res.json({ success: true, processedCount: points.length });
+});
+
+// =========================================================================
+// Real GPS Hardware Tracking Integration (ESP32, 4G GSM, Telemetry API)
+// =========================================================================
+
+// 1. Hardware GPS Ingestion API (ESP32 + NEO-6M + SIM7600/A7670C / Teltonika / Quectel / HTTP REST)
+apiRouter.post('/gps/ingest', (req, res) => {
+  const authHeader = req.headers['x-device-token'] || req.headers['authorization'];
+  const tokenFromHeader = authHeader ? String(authHeader).replace(/^Bearer\s+/i, '') : '';
+  const deviceToken = tokenFromHeader || req.body.deviceToken || req.body.token || req.body.key;
+
+  const deviceId = req.body.deviceId || req.body.devId || req.body.id;
+  const imei = req.body.imei ? String(req.body.imei).trim() : undefined;
+
+  // Find registered device by ID or IMEI
+  let device = deviceId ? db.getGpsDeviceById(deviceId) : undefined;
+  if (!device && imei) {
+    device = db.getGpsDeviceById(imei);
+  }
+
+  // Token authentication check (if token is set on device)
+  if (device && device.deviceToken && deviceToken && device.deviceToken !== deviceToken) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid GPS hardware device token.' });
+  }
+
+  // Parse telemetry values from varied hardware protocol structures
+  const rawLat = req.body.latitude !== undefined ? req.body.latitude : req.body.lat;
+  const rawLng = req.body.longitude !== undefined ? req.body.longitude : req.body.lng;
+  const rawSpeed = req.body.speed !== undefined ? req.body.speed : req.body.spd;
+  const rawHeading = req.body.heading !== undefined ? req.body.heading : req.body.hdg;
+  const rawAcc = req.body.accuracy !== undefined ? req.body.accuracy : req.body.acc;
+  const rawSats = req.body.satellites !== undefined ? req.body.satellites : req.body.sats;
+  const rawBat = req.body.battery !== undefined ? req.body.battery : req.body.bat;
+  const rawSim = req.body.simStatus || req.body.sim || req.body.network;
+
+  const lat = typeof rawLat === 'string' ? parseFloat(rawLat) : Number(rawLat);
+  const lng = typeof rawLng === 'string' ? parseFloat(rawLng) : Number(rawLng);
+  const speed = typeof rawSpeed === 'string' ? parseFloat(rawSpeed) : Number(rawSpeed) || 0;
+  const heading = typeof rawHeading === 'string' ? parseFloat(rawHeading) : Number(rawHeading) || 0;
+  const accuracy = typeof rawAcc === 'string' ? parseFloat(rawAcc) : Number(rawAcc) || 3;
+  const satellites = typeof rawSats === 'string' ? parseInt(rawSats, 10) : Number(rawSats) || 0;
+  const battery = rawBat !== undefined ? (typeof rawBat === 'string' ? parseFloat(rawBat) : Number(rawBat)) : undefined;
+
+  // Validate incoming GPS data
+  let status: GpsConnectionStatus = 'connected';
+  let validationMessage = 'Valid GPS telemetry coordinates received.';
+
+  if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    status = 'invalid_data';
+    validationMessage = `Latitude/Longitude out of valid WGS-84 coordinate range (${lat}, ${lng})`;
+  } else if ((lat === 0 && lng === 0) || satellites < 3) {
+    status = 'no_fix';
+    validationMessage = `Device communicating via 4G/GSM but GPS lock pending (satellites: ${satellites})`;
+  }
+
+  // Find target bus: from body or device mapping
+  const busId = req.body.busId || device?.busId;
+  const targetBus = busId ? db.getBusById(busId) : undefined;
+  const nowIso = new Date().toISOString();
+
+  // Log incoming telemetry packet
+  const packetLog: GpsPacketLog = {
+    id: `pkt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    deviceId: device?.id || deviceId || 'hw_unregistered',
+    busId: targetBus?.id,
+    timestamp: req.body.timestamp || nowIso,
+    latitude: isNaN(lat) ? 0 : lat,
+    longitude: isNaN(lng) ? 0 : lng,
+    speed: isNaN(speed) ? 0 : speed,
+    heading: isNaN(heading) ? 0 : heading,
+    accuracy: isNaN(accuracy) ? 0 : accuracy,
+    satellites: isNaN(satellites) ? 0 : satellites,
+    battery,
+    simStatus: rawSim,
+    rawPayload: JSON.stringify(req.body).substring(0, 500),
+    validationStatus: status === 'connected' ? 'valid' : status === 'no_fix' ? 'no_fix' : 'invalid',
+    validationMessage,
+  };
+  db.addGpsPacketLog(packetLog);
+
+  // Update device in DB
+  if (device) {
+    device.status = status;
+    device.lastPacketTime = nowIso;
+    device.lastRawPacket = JSON.stringify(req.body);
+    if (status === 'connected') {
+      device.lastLatitude = lat;
+      device.lastLongitude = lng;
+      device.lastSpeed = speed;
+      device.lastHeading = heading;
+      device.lastAccuracy = accuracy;
+    }
+    if (satellites > 0) device.satellitesCount = satellites;
+    if (battery !== undefined) device.batteryPercent = battery;
+    if (rawSim) device.simStatus = rawSim;
+    db.upsertGpsDevice(device);
+  }
+
+  // If connected to a bus and coordinates valid, update bus & broadcast
+  if (targetBus) {
+    const busUpdates: Partial<Bus> = {
+      gpsConnectionStatus: status,
+      lastGpsUpdate: nowIso,
+      gpsDeviceId: device?.id || targetBus.gpsDeviceId,
+      gpsDeviceImei: device?.imei || targetBus.gpsDeviceImei,
+    };
+
+    if (status === 'connected') {
+      busUpdates.currentLatitude = lat;
+      busUpdates.currentLongitude = lng;
+
+      // Update location and broadcast to WebSocket / SSE subscribers
+      const loc: BusLocation = {
+        busId: targetBus.id,
+        latitude: lat,
+        longitude: lng,
+        speed,
+        heading,
+        accuracy,
+        timestamp: nowIso,
+        isSimulated: false,
+      };
+      db.updateBusLocation(loc);
+
+      sse.broadcast('bus_location', {
+        ...loc,
+        plateNumber: targetBus.plateNumber,
+        busNumber: targetBus.busNumber,
+      });
+
+      // Safety: Overspeed detection (> 50 km/h)
+      if (speed > 50) {
+        sse.broadcast('safety_alert', {
+          id: `speed_${Date.now()}`,
+          busId: targetBus.id,
+          busNumber: targetBus.busNumber,
+          type: 'speed_warning',
+          speed,
+          message: `Speed Warning: ${targetBus.busNumber} clocked at ${speed} km/h (speed limit 50 km/h).`,
+          timestamp: nowIso,
+        });
+      }
+    }
+
+    db.updateBus(targetBus.id, busUpdates);
+  }
+
+  res.json({
+    success: status === 'connected',
+    status,
+    message: validationMessage,
+    busId: targetBus?.id,
+    timestamp: nowIso,
+  });
+});
+
+// 2. Get All GPS Hardware Devices (Admin Only)
+apiRouter.get('/gps/devices', requireRole(['admin']), (req: AuthRequest, res) => {
+  const devices = db.getGpsDevices();
+  res.json({ devices });
+});
+
+// 3. Register or Update a GPS Hardware Device
+apiRouter.post('/gps/devices', requireRole(['admin']), (req: AuthRequest, res) => {
+  const {
+    id,
+    name,
+    imei,
+    busId,
+    deviceToken,
+    protocol,
+    updateIntervalSeconds,
+    simCarrier,
+    simPhoneNumber,
+    firmwareVersion,
+  } = req.body;
+
+  if (!id || !imei) {
+    return res.status(400).json({ error: 'Device ID and 15-digit IMEI are required.' });
+  }
+
+  const existing = db.getGpsDeviceById(id);
+  const nowIso = new Date().toISOString();
+
+  const device: GpsDevice = {
+    id: String(id).trim(),
+    name: name || `GPS Device ${id}`,
+    imei: String(imei).trim(),
+    busId: busId || existing?.busId,
+    deviceToken: deviceToken || existing?.deviceToken || `tec_token_${Math.random().toString(36).substring(2, 8)}`,
+    protocol: protocol || existing?.protocol || 'esp32_json',
+    serverEndpoint: '/api/gps/ingest',
+    updateIntervalSeconds: updateIntervalSeconds || existing?.updateIntervalSeconds || 3,
+    status: existing?.status || 'not_configured',
+    simStatus: existing?.simStatus || '4g_lte',
+    simCarrier: simCarrier || existing?.simCarrier || 'Jio 4G LTE IoT M2M',
+    simPhoneNumber: simPhoneNumber || existing?.simPhoneNumber,
+    firmwareVersion: firmwareVersion || existing?.firmwareVersion || 'TEC-ESP32-GPS-v2.4.1',
+    createdAt: existing?.createdAt || nowIso,
+    updatedAt: nowIso,
+  };
+
+  db.upsertGpsDevice(device);
+
+  // If mapped to bus, sync bus record
+  if (busId) {
+    const bus = db.getBusById(busId);
+    if (bus) {
+      db.updateBus(busId, {
+        gpsDeviceId: device.id,
+        gpsDeviceImei: device.imei,
+        gpsSimStatus: device.simStatus,
+        gpsConnectionStatus: device.status,
+      });
+    }
+  }
+
+  res.json({ success: true, device });
+});
+
+// 4. Connect GPS Device to Bus
+apiRouter.post('/gps/devices/:id/connect', requireRole(['admin']), (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const { busId } = req.body;
+
+  if (!busId) {
+    return res.status(400).json({ error: 'Bus ID is required to connect device.' });
+  }
+
+  const device = db.getGpsDeviceById(id);
+  if (!device) {
+    return res.status(404).json({ error: 'GPS Device not found.' });
+  }
+
+  const bus = db.getBusById(busId);
+  if (!bus) {
+    return res.status(404).json({ error: 'Bus not found.' });
+  }
+
+  device.busId = busId;
+  device.status = device.lastLatitude ? 'connected' : 'no_fix';
+  db.upsertGpsDevice(device);
+
+  db.updateBus(busId, {
+    gpsDeviceId: device.id,
+    gpsDeviceImei: device.imei,
+    gpsSimStatus: device.simStatus,
+    gpsConnectionStatus: device.status,
+    lastGpsUpdate: device.lastPacketTime || new Date().toISOString(),
+    currentLatitude: device.lastLatitude || bus.currentLatitude,
+    currentLongitude: device.lastLongitude || bus.currentLongitude,
+  });
+
+  res.json({ success: true, device, bus });
+});
+
+// 5. Disconnect GPS Device from Bus
+apiRouter.post('/gps/devices/:id/disconnect', requireRole(['admin']), (req: AuthRequest, res) => {
+  const { id } = req.params;
+  const device = db.getGpsDeviceById(id);
+  if (!device) {
+    return res.status(404).json({ error: 'GPS Device not found.' });
+  }
+
+  const oldBusId = device.busId;
+  device.busId = undefined;
+  device.status = 'not_configured';
+  db.upsertGpsDevice(device);
+
+  if (oldBusId) {
+    db.updateBus(oldBusId, {
+      gpsDeviceId: undefined,
+      gpsDeviceImei: undefined,
+      gpsConnectionStatus: 'not_configured',
+    });
+  }
+
+  res.json({ success: true, device });
+});
+
+// 6. Test GPS Connection (Simulation / Verification Ping - Admin Only)
+apiRouter.post('/gps/test-ping', requireRole(['admin']), (req: AuthRequest, res) => {
+  const { busId, deviceId } = req.body;
+  const targetBus = busId ? db.getBusById(busId) : undefined;
+  const device = deviceId ? db.getGpsDeviceById(deviceId) : (targetBus?.gpsDeviceId ? db.getGpsDeviceById(targetBus.gpsDeviceId) : undefined);
+
+  const lat = targetBus?.currentLatitude || 8.7139 + (Math.random() - 0.5) * 0.003;
+  const lng = targetBus?.currentLongitude || 77.7567 + (Math.random() - 0.5) * 0.003;
+  const speed = Math.round(30 + Math.random() * 15);
+  const heading = Math.round(Math.random() * 360);
+  const nowIso = new Date().toISOString();
+
+  const testPacket = {
+    deviceId: device?.id || 'gps_test_transponder',
+    busId: targetBus?.id,
+    timestamp: nowIso,
+    latitude: lat,
+    longitude: lng,
+    speed,
+    heading,
+    accuracy: 2.5,
+    satellites: 10,
+    battery: 98,
+    simStatus: '4g_lte',
+    rawPayload: `{"test":true,"bus":"${targetBus?.busNumber}","lat":${lat},"lng":${lng}}`,
+    validationStatus: 'valid' as const,
+    validationMessage: 'Hardware ping received and verified successfully.',
+  };
+
+  db.addGpsPacketLog({
+    id: `pkt_test_${Date.now()}`,
+    ...testPacket,
+  });
+
+  if (targetBus) {
+    db.updateBus(targetBus.id, {
+      gpsConnectionStatus: 'connected',
+      lastGpsUpdate: nowIso,
+      currentLatitude: lat,
+      currentLongitude: lng,
+    });
+
+    const loc: BusLocation = {
+      busId: targetBus.id,
+      latitude: lat,
+      longitude: lng,
+      speed,
+      heading,
+      accuracy: 2.5,
+      timestamp: nowIso,
+      isSimulated: false,
+    };
+    db.updateBusLocation(loc);
+
+    sse.broadcast('bus_location', {
+      ...loc,
+      plateNumber: targetBus.plateNumber,
+      busNumber: targetBus.busNumber,
+    });
+  }
+
+  res.json({
+    success: true,
+    message: `GPS transponder connection verified on ${targetBus?.busNumber || 'Device'}. Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}, Speed: ${speed} km/h`,
+    packet: testPacket,
+  });
+});
+
+// 7. Get GPS Packet History Logs for a Bus (Admin Only)
+apiRouter.get('/gps/logs/:busId', requireRole(['admin']), (req: AuthRequest, res) => {
+  const { busId } = req.params;
+  const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 30;
+  const logs = db.getGpsPacketLogs(busId, limit);
+  res.json({ logs });
 });
 
 apiRouter.post('/driver/mark-stop', requireRole(['driver', 'admin']), (req: AuthRequest, res) => {

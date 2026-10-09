@@ -984,6 +984,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
                   <th className="px-4 py-3">Capacity</th>
                   <th className="px-4 py-3">Assigned Route</th>
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Real GPS Hardware</th>
                   <th className="px-4 py-3 rounded-r-xl text-right">Actions</th>
                 </tr>
               </thead>
@@ -1079,8 +1080,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
                           {b.status}
                         </span>
                       </td>
+                      <td className="px-4 py-3">
+                        {b.gpsDeviceId ? (
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`w-2 h-2 rounded-full ${
+                                b.gpsConnectionStatus === 'connected' ? 'bg-emerald-500 animate-ping' :
+                                b.gpsConnectionStatus === 'no_fix' ? 'bg-amber-500' : 'bg-slate-400'
+                              }`} />
+                              <span className="font-bold text-xs capitalize text-slate-800 dark:text-slate-200">
+                                {b.gpsConnectionStatus || 'connected'}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-400 block truncate max-w-[130px]">
+                              {b.gpsDeviceId}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-medium">Not Linked</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => setBusDetailModal(b)}
+                            className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500 hover:text-slate-950 font-bold text-[11px] flex items-center gap-1 transition-all"
+                            title="Connect & Manage Real GPS Hardware Tracker"
+                          >
+                            <Radio className="w-3 h-3 animate-pulse" />
+                            <span>Real GPS</span>
+                          </button>
                           <button
                             onClick={() => setBusDetailModal(b)}
                             className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -2384,6 +2413,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
               <VehicleGpsTracker
                 bus={busDetailModal}
                 location={busLocations[busDetailModal.id]}
+                onBusUpdated={updatedBus => {
+                  setBuses(prev => prev.map(b => b.id === updatedBus.id ? updatedBus : b));
+                  setBusDetailModal(updatedBus);
+                }}
+                onLocationUpdated={() => {
+                  refreshAllData();
+                }}
               />
             </div>
 

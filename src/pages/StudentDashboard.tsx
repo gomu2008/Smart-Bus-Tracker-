@@ -4,7 +4,6 @@ import { useLive } from '../context/LiveContext';
 import { useToast } from '../context/ToastContext';
 import { LeafletMap } from '../components/LeafletMap';
 import { RouteStopPicker } from '../components/RouteStopPicker';
-import { VehicleGpsTracker } from '../components/VehicleGpsTracker';
 import { Route, Stop, Bus, Trip, FeedbackItem } from '../types';
 import {
   MapPin,
@@ -48,7 +47,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
   const [selectedRouteId, setSelectedRouteId] = useState<string>('route_01');
   const [selectedStopId, setSelectedStopId] = useState<string>('stop_03');
   const [destinationStopId, setDestinationStopId] = useState<string>('');
-  const [showVehicleGps, setShowVehicleGps] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [favouriteStops, setFavouriteStops] = useState<{ stopId: string; routeId: string }[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -372,14 +370,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
 
               <div className="pt-3 border-t border-slate-950/20 flex flex-wrap items-center justify-between text-xs font-bold text-slate-950">
                 <span>Distance: {stopETA ? `${stopETA.distanceKm} km away` : '--'}</span>
-                <span>Telemetry: {busLiveLoc ? `${Math.round(busLiveLoc.speed)} km/h · Heading ${busLiveLoc.heading || 0}°` : 'GPS Standby'}</span>
-                <button
-                  type="button"
-                  onClick={() => setShowVehicleGps(prev => !prev)}
-                  className="px-2.5 py-1 rounded-lg bg-slate-950 text-amber-400 text-[11px] font-extrabold hover:bg-slate-900 transition-colors"
-                >
-                  {showVehicleGps ? 'Hide GPS Telemetry' : 'Show Vehicle GPS'}
-                </button>
+                <span>Live Telemetry: {busLiveLoc ? `${Math.round(busLiveLoc.speed)} km/h · Heading ${busLiveLoc.heading || 0}°` : 'GPS Standby'}</span>
               </div>
             </div>
 
@@ -406,15 +397,6 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ activeTab, o
               </div>
             </div>
           </div>
-
-          {/* Live Vehicle GPS Transponder HUD (when active) */}
-          {showVehicleGps && activeBusOnRoute && (
-            <VehicleGpsTracker
-              bus={activeBusOnRoute}
-              location={busLiveLoc}
-              trip={activeTripOnRoute}
-            />
-          )}
 
           {/* Interactive Map & Telemetry Dashboard */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
