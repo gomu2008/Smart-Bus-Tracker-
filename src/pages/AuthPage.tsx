@@ -73,8 +73,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
     setMode('login');
 
     if (portal === 'admin') {
-      setEmail('gomu2468@gmail.com');
-      setPassword('gomu2008@');
+      setEmail('');
+      setPassword('');
     } else if (portal === 'student') {
       setEmail('student.aarav@college.edu');
       setPassword('Student@123');
@@ -343,7 +343,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                 </p>
                 <p className="text-[11px] text-amber-700 dark:text-amber-400 pt-1 font-semibold flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Secure administrative authentication (password: gomu2008@) required for master access.</span>
+                  <span>Secure administrative authentication required for master access.</span>
                 </p>
               </div>
             ) : selectedPortal === 'student' ? (
@@ -435,7 +435,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                     required
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder={selectedPortal === 'admin' ? 'gomu2468@gmail.com' : 'student.aarav@college.edu'}
+                    placeholder={selectedPortal === 'admin' ? 'admin@college.edu' : 'student.aarav@college.edu'}
                     className="w-full pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
@@ -465,7 +465,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                     required
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    placeholder={selectedPortal === 'admin' ? 'Enter admin password (gomu2008@)' : '••••••••'}
+                    placeholder="••••••••"
                     className="w-full pl-9 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
                   />
                   <button

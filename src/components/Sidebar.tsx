@@ -18,6 +18,7 @@ import {
   X,
   Sparkles,
   Sliders,
+  Radio,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -62,6 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange, isOpen
   const adminLinks = [
     { id: 'overview', label: 'Command Overview', icon: Gauge },
     { id: 'fleet', label: 'Fleet Management', icon: Bus },
+    { id: 'gps_tracker', label: 'Real GPS Tracker', icon: Radio },
     { id: 'routes', label: 'Routes & Stops Picker', icon: MapPin },
     { id: 'users', label: 'Users & Driver Approvals', icon: Users },
     { id: 'map_tactical', label: 'Live Fleet Radar', icon: Compass },

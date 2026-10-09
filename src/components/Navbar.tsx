@@ -66,6 +66,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, activeTab, onTa
       ? [
           { id: 'overview', label: 'Command' },
           { id: 'fleet', label: 'Fleet' },
+          { id: 'gps_tracker', label: 'Real GPS' },
           { id: 'routes', label: 'Routes' },
           { id: 'users', label: 'Users' },
           { id: 'map_tactical', label: 'Radar Map' },

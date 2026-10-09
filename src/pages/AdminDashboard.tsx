@@ -7,6 +7,7 @@ import { Logo } from '../components/Logo';
 import { LeafletMap } from '../components/LeafletMap';
 import { CsvDataReportDebugger } from '../components/CsvDataReportDebugger';
 import { VehicleGpsTracker } from '../components/VehicleGpsTracker';
+import { RealGpsTrackerSection } from '../components/RealGpsTrackerSection';
 import { Bus, Route, Stop, User, FeedbackItem, Announcement } from '../types';
 import {
   Gauge,
@@ -69,6 +70,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
 
   // Fleet state
   const [buses, setBuses] = useState<Bus[]>([]);
+  const [fleetSubTab, setFleetSubTab] = useState<'vehicles' | 'gps'>('vehicles');
   const [showAddBusModal, setShowAddBusModal] = useState<boolean>(false);
   const [editingBus, setEditingBus] = useState<Bus | null>(null);
   const [busDetailModal, setBusDetailModal] = useState<Bus | null>(null);
@@ -933,12 +935,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
 
       {/* VIEW: FLEET MANAGEMENT */}
       {activeTab === 'fleet' && (
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Fleet Vehicles Management</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Register, configure, and assign campus transport buses</p>
-            </div>
+        <div className="space-y-6">
+          {/* Sub-tab Switcher: Vehicles vs Real GPS Tracker */}
+          <div className="flex items-center gap-2 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 w-fit">
+            <button
+              type="button"
+              onClick={() => setFleetSubTab('vehicles')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                fleetSubTab === 'vehicles'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <BusIcon className="w-3.5 h-3.5 text-amber-500" />
+              <span>Vehicles & Specifications</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFleetSubTab('gps')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                fleetSubTab === 'gps'
+                  ? 'bg-amber-500 text-slate-950 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Radio className="w-3.5 h-3.5 animate-pulse" />
+              <span>Real GPS Tracker (Hardware)</span>
+            </button>
+          </div>
+
+          {fleetSubTab === 'gps' ? (
+            <RealGpsTrackerSection
+              buses={buses}
+              routes={routes}
+              busLocations={busLocations}
+              onBusUpdated={updatedBus => {
+                setBuses(prev => prev.map(b => b.id === updatedBus.id ? updatedBus : b));
+              }}
+              onLocationUpdated={() => {
+                refreshAllData();
+              }}
+              refreshAllData={refreshAllData}
+            />
+          ) : (
+            <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Fleet Vehicles Management</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Register, configure, and assign campus transport buses</p>
+                </div>
             <button
               onClick={() => {
                 setEditingBus(null);
@@ -1103,7 +1148,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
-                            onClick={() => setBusDetailModal(b)}
+                            onClick={() => setFleetSubTab('gps')}
                             className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500 hover:text-slate-950 font-bold text-[11px] flex items-center gap-1 transition-all"
                             title="Connect & Manage Real GPS Hardware Tracker"
                           >
@@ -1165,6 +1210,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ activeTab, onTab
             </table>
           </div>
         </div>
+        )}
+      </div>
+      )}
+
+      {/* VIEW: DEDICATED REAL GPS TRACKER TAB */}
+      {activeTab === 'gps_tracker' && (
+        <RealGpsTrackerSection
+          buses={buses}
+          routes={routes}
+          busLocations={busLocations}
+          onBusUpdated={updatedBus => {
+            setBuses(prev => prev.map(b => b.id === updatedBus.id ? updatedBus : b));
+          }}
+          onLocationUpdated={() => {
+            refreshAllData();
+          }}
+          refreshAllData={refreshAllData}
+        />
       )}
 
       {/* VIEW: ROUTES & STOPS PICKER */}
