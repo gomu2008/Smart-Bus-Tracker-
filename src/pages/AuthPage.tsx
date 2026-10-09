@@ -423,10 +423,26 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
 
           {/* LOGIN FORM */}
           {mode === 'login' && (
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <form onSubmit={handleLoginSubmit} className="space-y-4" autoComplete="off">
+              {selectedPortal === 'admin' && (email || password) && (
+                <div className="flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail('');
+                      setPassword('');
+                      setErrorMessage(null);
+                    }}
+                    className="text-xs font-bold text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 hover:underline flex items-center gap-1"
+                  >
+                    <span>✕ Clear Gmail & Password</span>
+                  </button>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  {selectedPortal === 'admin' ? 'Admin Gmail Address' : 'Email Address'}
+                  {selectedPortal === 'admin' ? 'Admin Gmail / Email Address' : 'Email Address'}
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -435,7 +451,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                     required
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder={selectedPortal === 'admin' ? 'admin@college.edu' : 'student.aarav@college.edu'}
+                    placeholder={selectedPortal === 'admin' ? '' : 'student.aarav@college.edu'}
+                    autoComplete="off"
                     className="w-full pl-9 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                   />
                 </div>
@@ -465,7 +482,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialRole = 'student', onS
                     required
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder={selectedPortal === 'admin' ? '' : '••••••••'}
+                    autoComplete="new-password"
                     className="w-full pl-9 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
                   />
                   <button

@@ -215,7 +215,7 @@ export function getSeedData(): DatabaseSchema {
     {
       id: 'bus_01',
       plateNumber: 'TN-72-AZ-2026',
-      busNumber: 'Bus 01 (Thamirabharani Express)',
+      busNumber: 'Bus 01 (Tirunelveli Express)',
       capacity: 45,
       model: 'Tata Starbus Ultra EV 2024',
       status: 'active',
@@ -470,12 +470,12 @@ export function getSeedData(): DatabaseSchema {
     },
     {
       id: 'stop_tn_12',
-      name: 'Thamirabharani Engineering College (TEC) Main Campus',
+      name: 'Tirunelveli Engineering College (TEC) Main Campus',
       code: 'TEC-12',
       latitude: 8.7180,
       longitude: 77.7850,
       landmark: 'TEC Administrative Block & Transit Bay',
-      address: 'Thamirabharani Nagar, Chathirakudypu, Tirunelveli, Tamil Nadu 627351',
+      address: 'Tirunelveli Nagar, Chathirakudypu, Tirunelveli, Tamil Nadu 627351',
       createdAt: pastHour,
     },
   ];
@@ -700,7 +700,7 @@ export function getSeedData(): DatabaseSchema {
       id: 'notif_01',
       userId: 'usr_student_1',
       title: 'Bus #01 Approaching Palayamkottai',
-      message: 'Thamirabharani Express morning trip has crossed Vannarpettai and is 3 minutes away from Palayamkottai Market.',
+      message: 'Tirunelveli Express morning trip has crossed Vannarpettai and is 3 minutes away from Palayamkottai Market.',
       type: 'trip_started' as const,
       read: false,
       createdAt: now,
@@ -727,7 +727,7 @@ export function getSeedData(): DatabaseSchema {
   const gps_devices: GpsDevice[] = [
     {
       id: 'gps_dev_01',
-      name: 'ESP32 + NEO-6M (Bus 01 Thamirabharani Express)',
+      name: 'ESP32 + NEO-6M (Bus 01 Tirunelveli Express)',
       imei: '864923051029481',
       busId: 'bus_01',
       deviceToken: 'tec_hw_token_bus01_8a72',
@@ -887,7 +887,7 @@ export function getSeedData(): DatabaseSchema {
     gps_devices,
     gps_packet_logs,
     settings: {
-      collegeName: 'Thamirabharani Engineering College (TEC), Tirunelveli',
+      collegeName: 'Tirunelveli Engineering College (TEC), Tirunelveli',
       demoMode: true,
       lastUpdated: now,
     },

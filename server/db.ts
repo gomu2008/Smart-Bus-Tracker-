@@ -25,7 +25,11 @@ class Database {
   private load(): DatabaseSchema {
     try {
       if (fs.existsSync(DB_FILE)) {
-        const content = fs.readFileSync(DB_FILE, 'utf-8');
+        let content = fs.readFileSync(DB_FILE, 'utf-8');
+        if (content.includes('Thamirabharani')) {
+          content = content.replaceAll('Thamirabharani', 'Tirunelveli');
+          fs.writeFileSync(DB_FILE, content, 'utf-8');
+        }
         const parsed = JSON.parse(content);
         // Verify key tables exist and check if data needs migration from old Bengaluru stops
         if (parsed.users && parsed.buses && parsed.stops && parsed.routes) {
